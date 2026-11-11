@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="restaurant_ordering_skill_name">餐厅点餐</string>
+    <string name="osagent_skill_restaurant_ordering">餐厅点餐 CLI</string>
+</resources>

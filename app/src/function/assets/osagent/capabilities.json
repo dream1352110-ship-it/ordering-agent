@@ -1,0 +1,326 @@
+{
+  "protocol": "com.sm.osagent.capability",
+  "protocolVersion": 1,
+  "functions": [
+    {
+      "id": "list-menu",
+      "function": {
+        "description": "只读浏览本地演示菜单，返回商品ID、CNY整数分价格、库存和规格摘要。categoryId可选，省略返回全部；商品与规格明确时可直接使用Skill菜单快照。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "categoryId": {
+              "type": "string",
+              "description": "可选分类ID；不传表示全部，不存在all分类ID。",
+              "enum": ["main", "light", "snacks", "bakery", "coffee", "tea", "cold-drinks"]
+            }
+          },
+          "required": []
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "get-menu-item",
+      "function": {
+        "description": "按稳定itemId只读查询完整商品资料：配料、份量、CNY整数分价格、库存、规格及默认值、含有和可能接触的过敏原、资料完整性。资料为本地模拟数据，未列出的过敏原不代表安全。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "itemId": { "type": "string", "description": "Skill菜单快照或菜单接口提供的稳定商品ID，不是商品名称。" }
+          },
+          "required": ["itemId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "search-menu",
+      "function": {
+        "description": "只读批量查询商品；names按名称子串匹配，itemIds按精确ID匹配，至少提供一个非空数组。结果取并集去重、按菜单顺序返回，含价格、库存、完整规格及默认值、过敏资料和当前冲突；未匹配项分别列入unmatchedNames/unmatchedItemIds。配料和份量使用get-menu-item查询。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "names": { "type": "array", "items": { "type": "string" }, "description": "最多100个非空名称子串，每个1至128字符。" },
+            "itemIds": { "type": "array", "items": { "type": "string" }, "description": "最多100个稳定商品ID，每个1至128字符。" }
+          },
+          "required": []
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "apply-cart-changes",
+      "function": {
+        "description": "按changes顺序原子执行1至100步购物车修改，共用一个requestId，任一步或保存失败全部回滚。orderId省略时操作执行时当前车，显式提供时校验目标单。支持加购、修改、增减、删除、就餐设置及过敏要求；返回完整车、orderId/cartVersion、requestId/operation和appliedChanges。已完成原请求重放原收据，不代表当前状态。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "orderId": { "type": "string", "description": "可选目标单ID；省略操作执行时当前车，显式提供须匹配当前单，否则冲突。" },
+            "requestId": { "type": "string", "description": "非空白、1至128字符的批次幂等键；新意图用新ID，重试保留原ID和全部原参数。" },
+            "changes": {
+              "type": "array",
+              "description": "1至100步；只传对应字段，无嵌套requestId/orderId。按序执行，后步只能引用已知且仍存在的cartItemId。",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "operation": { "type": "string", "enum": ["add-cart-item", "update-cart-item", "adjust-cart-item", "remove-cart-item", "set-dining-settings", "set-allergy-requirements"] },
+                  "itemId": { "type": "string", "description": "add必填稳定商品ID。" },
+                  "cartItemId": { "type": "string", "description": "update/adjust/remove必填当前条目ID。" },
+                  "quantity": { "type": "integer", "description": "add必填增加量1至99；update可选绝对量1至99，与options至少一个。" },
+                  "delta": { "type": "integer", "description": "adjust必填，-99至99非零；结果0删除，其他结果1至99。" },
+                  "options": {
+                    "type": "object",
+                    "description": "add必填、update/adjust可选的完整规格替换，值为字符串，无规格{}。adjust结果0时不能提供。",
+                    "properties": { "size": { "type": "string" }, "temperature": { "type": "string" }, "sugar": { "type": "string" } },
+                    "required": []
+                  },
+                  "serviceMode": { "type": "string", "enum": ["dine-in", "takeout"], "description": "dining字段，与partySize至少一个，省略保留。" },
+                  "partySize": { "type": "integer", "description": "dining人数1至12。" },
+                  "allergenIds": { "type": "array", "items": { "type": "string", "enum": ["peanut", "milk", "egg", "wheat", "soy", "fish"] }, "description": "allergy必填整体替换集合；只有用户明确清除才传[]。" }
+                },
+                "required": ["operation"]
+              }
+            }
+          },
+          "required": ["requestId", "changes"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "get-cart",
+      "function": {
+        "description": "以{}只读查询当前购物车，返回orderId、cartVersion、条目ID、完整规格、过敏要求、就餐设置和金额。用于查看车、定位条目、取得核对或重置所需的新鲜状态及冲突恢复；仍适用的新执行结果可直接复用，重放收据不能作为当前状态。",
+        "parameters": { "type": "object", "properties": {}, "required": [] }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "start-new-order",
+      "function": {
+        "description": "用户明确授权新建或重置订单后，以必填当前orderId和requestId执行，即使空车也重置。生成新ID、空车、空过敏要求、堂食2人，推进版本并使核对失效；保留历史订单、已扣库存和持久收据。旧目标单报ORDER_ID_CONFLICT；已完成原请求重放原收据。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "requestId": { "type": "string", "description": "非空白、长度1至128；新意图用新ID，重试保留原ID及全部原参数，跨重启仍返回原收据。" },
+            "orderId": { "type": "string", "description": "仍适用的新执行结果或get-cart返回的当前购物单ID，不使用旧收据身份。" }
+          },
+          "required": ["requestId", "orderId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "set-dining-settings",
+      "function": {
+        "description": "修改就餐方式或人数，至少提供一项，省略项保留；方式为dine-in/takeout，人数1至12。orderId省略操作执行时当前车，显式提供时校验。保留餐品、过敏要求和订单ID，推进版本并使核对失效；返回完整车及幂等收据。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "serviceMode": { "type": "string", "enum": ["dine-in", "takeout"], "enumNames": ["堂食", "外带"], "description": "可选就餐方式ID；必须与partySize至少提供一个，省略则保持当前方式，不传显示文字。" },
+            "partySize": { "type": "integer", "description": "可选用餐人数，仅支持1至12的整数，由运行时校验；必须与serviceMode至少提供一个，省略则保持当前人数。" },
+            "requestId": { "type": "string", "description": "非空白、长度1至128；新意图用新ID，重试保留原ID及全部原参数，跨重启仍返回原收据。" },
+            "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
+          },
+          "required": ["requestId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "add-cart-item",
+      "function": {
+        "description": "按稳定itemId、增加量quantity（1至99）和完整options加购，无规格传{}。同商品同规格合并数量，库存按商品跨规格汇总；校验规格、库存及过敏要求。orderId省略操作执行时当前车，显式提供时校验；返回完整车及幂等收据。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "itemId": { "type": "string", "description": "Skill菜单快照或菜单接口提供的稳定商品ID。" },
+            "quantity": { "type": "integer", "description": "本次增加数量，整数1至99；同商品同规格合并，库存按商品跨规格汇总校验。" },
+            "options": {
+              "type": "object",
+              "description": "商品支持的全部规格键及字符串选项ID，取自Skill快照或菜单查询；无规格传{}，应用不自动补默认值。",
+              "properties": {
+                "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
+                "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
+                "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
+              },
+              "required": []
+            },
+            "requestId": { "type": "string", "description": "长度1至128；新意图生成新ID。重试必须复用原ID及全部原参数，跨进程重启仍返回原持久化收据。" },
+            "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
+          },
+          "required": ["itemId", "quantity", "options", "requestId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "update-cart-item",
+      "function": {
+        "description": "按已知cartItemId修改数量或规格，quantity/options至少提供一项。quantity为绝对量1至99，删除使用remove-cart-item；options提供时完整替换，省略项保留。同规格合并后使用返回条目ID。校验库存、规格和过敏要求；orderId省略操作执行时当前车，显式提供时校验，返回完整车及幂等收据。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "cartItemId": { "type": "string", "description": "最新购物车返回的条目ID，不是itemId或行号。" },
+            "quantity": { "type": "integer", "description": "可选绝对数量1至99；必须与options至少提供一个，删除使用remove-cart-item。" },
+            "options": {
+              "type": "object",
+              "description": "可选完整规格替换对象，值全为字符串；必须覆盖商品全部实际规格，无规格为{}。省略则保留原规格。",
+              "properties": {
+                "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
+                "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
+                "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
+              },
+              "required": []
+            },
+            "requestId": { "type": "string", "description": "长度1至128；仅同函数同完整参数重试复用，新意图换新ID。" },
+            "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
+          },
+          "required": ["cartItemId", "requestId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "remove-cart-item",
+      "function": {
+        "description": "按当前车中已知cartItemId删除整条餐品，保留过敏及就餐设置；不能用商品ID或行号代替。orderId省略操作执行时当前车，显式提供时校验；返回完整车及幂等收据。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "cartItemId": { "type": "string", "description": "最新购物车中的条目ID。" },
+            "requestId": { "type": "string", "description": "长度1至128；同函数同参数重试复用，新意图使用新ID。" },
+            "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
+          },
+          "required": ["cartItemId", "requestId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "set-allergy-requirements",
+      "function": {
+        "description": "用allergenIds整体替换过敏要求，[]仅用于用户明确清除；保留餐品并返回完整车和风险。存在要求时，含有或可能接触目标过敏原、或资料不完整的商品阻断加购、数量规格修改、试算、核对和提交，允许删除风险项。orderId省略操作执行时当前车，显式提供时校验；不支持的过敏需求须咨询工作人员。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "allergenIds": {
+              "type": "array",
+              "description": "完整替换集合；空数组清除。仅支持列出的六类，其他过敏需求须咨询工作人员，不能承诺安全。",
+              "items": { "type": "string", "enum": ["peanut", "milk", "egg", "wheat", "soy", "fish"] }
+            },
+            "requestId": { "type": "string", "description": "长度1至128；同函数同完整参数重试复用，新意图使用新ID。" },
+            "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
+          },
+          "required": ["allergenIds", "requestId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "calculate-price",
+      "function": {
+        "description": "对非空候选items只读试算，按完整规格、当前库存和过敏要求验证，返回逐项有效性、问题、CNY整数分金额及所依据cartVersion。complete为真才可作为完整报价；有效行小计不是完整报价。试算不改车、不锁库存、不生成提交凭证。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "description": "非空候选组合；库存按同商品所有条目数量汇总，数量每项1至99。",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "itemId": { "type": "string", "description": "菜单返回的稳定商品ID。" },
+                  "quantity": { "type": "integer", "description": "整数1至99。" },
+                  "options": {
+                    "type": "object",
+                    "description": "商品全部实际规格，值全为字符串；无规格传{}，不自动补默认值。",
+                    "properties": {
+                      "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
+                      "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
+                      "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
+                    },
+                    "required": []
+                  }
+                },
+                "required": ["itemId", "quantity", "options"]
+              }
+            }
+          },
+          "required": ["items"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "open-checkout",
+      "function": {
+        "description": "以必填expectedCartVersion创建绑定当前版本、5分钟有效的核对单，返回summaryId、精确明细、要求、金额及到期时间，请用户核对。顶层、summary和cart的orderId一致。购物车变更或凭证失效须重新核对；仅请求显示界面，不提交、不付款、不锁库存。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "expectedCartVersion": { "type": "integer", "description": "get-cart或可靠新执行结果实际返回的非负64位cartVersion；冲突后读取购物车并重新决策，不使用旧收据版本。" }
+          },
+          "required": ["expectedCartVersion"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "submit-demo-order",
+      "function": {
+        "description": "提交用户已核对且仍有效的演示订单，必填summaryId、orderId、requestId和expectedCartVersion，并须完成真实用户确认。执行复核身份、版本、期限、库存和过敏要求；不接受confirmed参数。成功status=simulated、paymentProcessed=false；orderId为完成单，nextOrderId/cartVersion为当时新车快照。持久收据重放不重复下单，也不代表当前状态。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "summaryId": { "type": "string", "description": "open-checkout实际返回、用户已核对的有效核对单ID，不是calculate-price结果。" },
+            "orderId": { "type": "string", "description": "核对单所属且仍为当前单的orderId；已完成原请求优先重放原收据。" },
+            "requestId": { "type": "string", "description": "长度1至128；同函数同完整参数重试复用原ID，新意图换新ID。" },
+            "expectedCartVersion": { "type": "integer", "description": "核对单绑定且仍与当前购物车一致的非负64位cartVersion。" }
+          },
+          "required": ["summaryId", "requestId", "orderId", "expectedCartVersion"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "confirm" }
+    }
+  ],
+  "skills": [
+    {
+      "id": "restaurant-ordering",
+      "name": "@string/restaurant_ordering_skill_name",
+      "description": "处理餐饮推荐、询价、加减餐、规格、就餐设置、过敏要求与核对提交；依据内嵌菜单或查询结果选择商品与完整规格，普通修改作用执行时当前购物车，按需查询状态，经用户核对和确认后提交演示订单。",
+      "path": "osagent/skills/restaurant-ordering/SKILL.md",
+      "functionIds": [
+        "list-menu",
+        "get-menu-item",
+        "search-menu",
+        "apply-cart-changes",
+        "get-cart",
+        "start-new-order",
+        "set-dining-settings",
+        "add-cart-item",
+        "update-cart-item",
+        "remove-cart-item",
+        "set-allergy-requirements",
+        "calculate-price",
+        "open-checkout",
+        "submit-demo-order"
+      ]
+    }
+  ]
+}

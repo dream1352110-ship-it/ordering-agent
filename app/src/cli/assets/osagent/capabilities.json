@@ -1,0 +1,13 @@
+{
+  "protocol": "com.sm.osagent.capability",
+  "protocolVersion": 1,
+  "cli": {
+    "label": "ordering",
+    "skill": {
+      "id": "restaurant-ordering",
+      "name": "@string/osagent_skill_restaurant_ordering",
+      "description": "处理餐饮推荐、询价、加减餐、规格、就餐设置、过敏要求与核对提交；依据内嵌菜单或查询结果选择商品与完整规格，普通修改作用执行时当前购物车，按需查询状态，经用户核对和确认后提交演示订单。",
+      "path": "osagent/skills/restaurant-ordering/SKILL.md"
+    }
+  }
+}
