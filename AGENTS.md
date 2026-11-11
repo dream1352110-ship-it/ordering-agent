@@ -1,6 +1,6 @@
 # AGENTS.md · 智能点餐 Agent 工程指南与技能规范
 
-欢迎来到 **smartordering** (`com.sm.orderingagent`) 项目。本文档面向所有参与本项目的 AI 编码 Agent（包括 Antigravity、Claude Code、Codex、Cursor 等），定义了本项目的核心架构约束、已集成的工程技能库（Matt Pocock Skills）、14 项标准点餐能力契约以及高质量开发工作流准则。
+欢迎来到 **smartordering** (`com.sm.orderingagent`) 项目。本文档面向所有参与本项目的 AI 编码 Agent（包括 Antigravity、Claude Code、Codex、Cursor 等），定义了本项目的核心架构约束、已集成的工程技能库（Matt Pocock Skills）、14 项标准点餐能力契约、SDK 物理边界以及高质量开发工作流准则。
 
 ---
 
@@ -116,11 +116,38 @@
 
 ---
 
-## 5. 集成的 Agent Skills 技能库与工作流
+## 5. SDK 物理规范与接入细节 (SDK Physical Boundaries)
+
+严格遵循 OSAgent CapabilityProvider SDK 1.1.0 物理约束：
+
+### 5.1 资产物理限制 (Catalogue & Skills)
+* **Catalogue 约束**：`src/main/assets/osagent/capabilities.json` 编码必须为 UTF-8，文件最大不能超过 **256 KiB**。单个 Provider 最多声明 **100 个 Function**。
+* **参数 Schema 大小**：原始 Schema 的 UTF-8 编码大小不超过 **64 KiB**，嵌套深度不得超过 16 层。
+* **Skill 文档规范**：`SKILL.md` 正文最大不超过 **256 KiB**，文件第一行必须严格以 `---` 开头 frontmatter（包含 `name` 和 `description`），不要在前面插入任何注释或标题。
+* **路径格式要求**：`path` 必须为至少两段式的相对路径（如 `osagent/skills/<目录>/SKILL.md`），禁止以 `/` 开头或包含 `..`。
+* **欢迎页建议 (`promptSuggestions`)**：每个 Skill 最多 64 项；建议 `id` 必须匹配正则 `^[a-z][a-z0-9-]{0,63}$`；`priority` 仅允许取整数 `0` 或 `1`。
+
+### 5.2 错误码隔离铁律
+* **业务错误码与 SDK 系统错误码严格隔离**：
+  * SDK 会自动返回框架层错误码（如 `CALLER_NOT_ALLOWED`、`PROTOCOL_VERSION_UNSUPPORTED`、`FUNCTION_NOT_FOUND`、`HANDLER_EXEC_ERROR` 等）。
+  * **Provider 严禁在业务失败时借用 SDK 系统错误码**！业务校验不通过时，必须返回 Provider 专属的业务错误码，例如：`INVALID_ARGUMENTS`、`ITEM_NOT_FOUND`、`OUT_OF_STOCK`、`ALLERGEN_CONFLICT`、`CART_VERSION_CONFLICT`、`ORDER_ID_CONFLICT`、`REQUEST_ID_CONFLICT`、`CHECKOUT_EXPIRED`。
+
+### 5.3 CLI 运行时输出规范
+* **退出码映射**：Provider 的 `CapabilityCliHandler` 执行完成后只能返回 `CapabilityCliStatus.SUCCESS` 或 `CapabilityCliStatus.FAILURE`，由 SDK 分别映射为进程退出码 `0` 或 `1`。**严禁在代码中调用 `System.exit()`**。
+* **通道职责划分**：业务成功数据必须原样写 `output.stdout(json)`（紧凑 JSON，不混入多余日志）；业务失败或错误诊断信息写 `output.stderr(text)`。
+* **流管理**：Handler 必须在 `finally` 块中调用 `output.flush()`，但**严禁调用 `output.close()`**（通道由 SDK 在调用结束后统一关闭）。
+
+### 5.4 超时与生命周期窗口
+* **实际等待窗口**：系统端 App 绑定与调用等待窗口为 **`5000 ms + execution.timeoutMs`**。
+* **超时非取消原则**：本地等待超时或命令取消**不等于**远端 Provider 业务已停止。针对可能超时或网络抖动的修改操作，必须依赖 `requestId` 幂等重试或主动状态查询，不可直接当成未执行而盲目新建重复请求。
+
+---
+
+## 6. 集成的 Agent Skills 技能库与工作流
 
 本项目已将 [Matt Pocock Skills](https://github.com/mattpocock/skills) 完整集成至 `.agents/skills/` 目录中。
 
-### 5.1 核心主线：从想法到交付 (Idea → Ship)
+### 6.1 核心主线：从想法到交付 (Idea → Ship)
 
 ```
 [ 需求/想法 ]
@@ -147,7 +174,7 @@
 6. /retro ─────────────────────▶ 复盘会话，沉淀经验并改进工程环境
 ```
 
-### 5.2 常用技能快速索引 (Skill Cheat Sheet)
+### 6.2 常用技能快速索引 (Skill Cheat Sheet)
 
 | 技能名称 | 路径 | 触发方式 | 何时使用 |
 | :--- | :--- | :--- | :--- |
@@ -172,7 +199,7 @@
 
 ---
 
-## 6. 测试与质量门禁规范
+## 7. 测试与质量门禁规范
 
 1. **红-绿-重构 (TDD) 铁律**：
    * 任何涉及计价、购物车修改、库存扣减、核对单过期或过敏校验的改动，**必须先写失败的单元测试**。
@@ -187,9 +214,9 @@
 
 ---
 
-## 7. 设备联调与发布检查表
+## 8. 设备联调与发布检查表
 
-### 7.1 系统双向信任配置命令 (ADB)
+### 8.1 系统双向信任配置命令 (ADB)
 ```sh
 # 1. 允许系统发现本 Provider 应用
 adb shell settings put system sm_os_cap_providers com.sm.orderingagent
@@ -198,7 +225,7 @@ adb shell settings put system sm_os_cap_providers com.sm.orderingagent
 adb shell settings put system sm_os_cap_callers com.sm.osagent:com.android.shell
 ```
 
-### 7.2 发布前必核检查清单 (Checklist)
+### 8.2 发布前必核检查清单 (Checklist)
 * [ ] 两个 SDK AAR（`contract` 与 `provider-sdk`）版本一致且未手写重复 Service。
 * [ ] Merged Manifest 中包含自动合并的 `SmCapabilityProviderService`。
 * [ ] `Application.onCreate` 中已完成 Handler 集合安装（不得为空 Map）。
@@ -208,3 +235,31 @@ adb shell settings put system sm_os_cap_callers com.sm.osagent:com.android.shell
 * [ ] 跨进程请求已通过 `onMain` 调度至主线程，防止并发竞态。
 * [ ] 防御性 JSON 解析对未知字段严格拒绝。
 * [ ] 单元测试全量通过（`./gradlew test`）。
+
+---
+
+## 9. Git 提交规范
+
+为了保证版本提交历史的清晰、可回溯与自动化处理能力，所有代码提交必须遵循本节规范：
+
+* **语言与格式**：Git commit message 一律使用**简体中文**，并采用 **Conventional Commits** 标准格式：
+  ```
+  <type>(<scope>): <中文说明>
+  ```
+* **常用 type 类型**：
+  * `feat`：新增功能（特性）
+  * `fix`：修复缺陷（Bug）
+  * `docs`：文档变更（如更新 AGENTS.md、SKILL.md、注释等）
+  * `refactor`：代码重构（既不修复 bug 也不添加新功能的代码变更）
+  * `perf`：性能优化
+  * `test`：增加或修改测试用例
+  * `build`：构建系统或外部依赖项变更（如 Gradle 配置、AAR 引入等）
+  * `ci`：持续集成配置与脚本变更
+  * `chore`：其他杂项或辅助工具的变动
+  * `revert`：撤销先前的提交
+* **scope 范围约定**：使用实际组件或业务领域，例如 `pos`、`login`、`api`、`device`、`printer` 或 `domain`；不适用时可以省略括号。
+* **subject 规则**：使用简洁的祈使句说明本次提交做了什么，建议不超过 **50 个字符**。
+* **body 与 footer（可选）**：
+  * 可选 `body` 用于说明改动动机、上下文和关键实现，每条要点独占一行，建议每行不超过 **72 个字符**；
+  * `footer` 用于标识 `BREAKING CHANGE:` 或关联关联任务/Issue（如 `Closes #123`）。
+* **原子化提交原则**：**一次提交只包含一个可说明、可独立验证的逻辑变更**，严禁混入用户无关改动、本机环境差异、临时配置、私有密钥或构建缓存产物。
