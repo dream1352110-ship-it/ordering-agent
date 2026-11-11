@@ -29,6 +29,14 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions { unitTests.isIncludeAndroidResources = true }
+
+    flavorDimensions += "integration"
+    productFlavors {
+        create("function") { dimension = "integration" }
+        create("cli") { dimension = "integration" }
+    }
 }
 
 dependencies {
