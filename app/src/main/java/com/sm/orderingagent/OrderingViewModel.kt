@@ -10,14 +10,17 @@ import com.sm.orderingagent.domain.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.FutureTask
 
 class OrderingViewModel(application: Application) : AndroidViewModel(application) {
     private val session = OrderingSession.get(application)
     val state: OrderingState get() = session.state
     val menu get() = session.menu
+    val categories get() = session.categories
     val pendingCheckout get() = session.pendingCheckout
     val latestRemoteOrder get() = session.latestRemoteOrder
     val orderGeneration get() = session.orderGeneration
+    fun refreshMenu() = session.refreshMenuFromCloud()
     fun acknowledgeCheckout() = session.acknowledgeCheckout()
     fun acknowledgeOrder() = session.acknowledgeOrder()
     fun product(id: String) = session.product(id)
@@ -38,16 +41,74 @@ class OrderingViewModel(application: Application) : AndroidViewModel(application
 
 class OrderingSession private constructor(application: Application) {
     private val store = StateStore(File(application.filesDir, "ordering-state.json"))
-    private var engine = OrderingEngine(DemoMenu.items, store.load())
+    private val menuLock = Any()
+    val usesLocalDemoMenu: Boolean = isInstrumentation()
+    private val initialMenu = if (usesLocalDemoMenu) DemoMenu.items else emptyList()
+    private var engine = OrderingEngine(initialMenu, store.load())
+    @Volatile private var liveMenuReady = usesLocalDemoMenu
     var state by mutableStateOf(engine.state)
         private set
-    val menu = DemoMenu.items
+    var menu by mutableStateOf(initialMenu)
+        private set
+    var categories by mutableStateOf(listOf("全部") + initialMenu.map { it.category }.distinct())
+        private set
     var pendingCheckout by mutableStateOf<CheckoutQuote?>(null)
         private set
     var latestRemoteOrder by mutableStateOf<Order?>(null)
         private set
     var orderGeneration by mutableStateOf(0L)
         private set
+
+    init {
+        refreshMenuFromCloud()
+    }
+
+    fun refreshMenuFromCloud() {
+        if (usesLocalDemoMenu) return
+        Thread {
+            try {
+                ensureLiveMenu {
+                    val gateway = com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway()
+                    val responseJson = gateway.fetchRealMenuProducts(pageSize = 50)
+                    com.sm.orderingagent.gateway.MaxIotMenuConverter.convert(responseJson)
+                }
+            } catch (_: Exception) {
+                // 保持未就绪，下一次 Function / CLI 调用会重试
+            }
+        }.start()
+    }
+
+    fun ensureLiveMenu(fetch: () -> List<MenuItem>) {
+        if (liveMenuReady) return
+        synchronized(menuLock) {
+            if (liveMenuReady) return
+            val items = MenuCatalog.acceptCloudMenu(fetch())
+            val task = FutureTask { applyLiveMenu(items) }
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                task.run()
+            } else {
+                if (!android.os.Handler(android.os.Looper.getMainLooper()).post(task)) {
+                    throw OrderingException("主线程不可用", "INTERNAL_ERROR")
+                }
+                task.get()
+            }
+            liveMenuReady = true
+        }
+    }
+
+    private fun applyLiveMenu(items: List<MenuItem>) {
+        val validCart = engine.state.cart.filter { cartItem -> items.any { it.id == cartItem.itemId } }
+        val sanitized = if (validCart.size == engine.state.cart.size) {
+            engine.state
+        } else {
+            engine.state.copy(cart = validCart, version = engine.state.version + 1)
+        }
+        menu = items
+        categories = listOf("全部") + items.map { it.category }.distinct()
+        engine = OrderingEngine(items, sanitized)
+        state = engine.state
+        store.save(state)
+    }
     fun clearTransientForNewOrder() {
         pendingCheckout = null
         latestRemoteOrder = null
@@ -87,6 +148,9 @@ class OrderingSession private constructor(application: Application) {
     }
 
     companion object {
+        internal fun isInstrumentation(): Boolean =
+            System.getProperty("robolectric.logging.enabled") != null || System.getProperty("android.specs") != null
+
         @Volatile private var instance: OrderingSession? = null
         fun get(application: Application): OrderingSession = instance ?: synchronized(this) {
             instance ?: OrderingSession(application).also { instance = it }
@@ -120,7 +184,13 @@ internal class StateStore(file: File) {
                 orders = json.getJSONArray("orders").objects().map { order ->
                     Order(order.getString("id"), order.getString("number"), order.getLong("createdAt"),
                         order.getJSONArray("lines").objects().map { line ->
-                            OrderLine(line.getString("name"), line.getInt("quantity"), line.getString("options"), line.getInt("unitPriceCents"))
+                            OrderLine(
+                                line.getString("name"),
+                                line.getInt("quantity"),
+                                line.getString("options"),
+                                line.getInt("unitPriceCents"),
+                                if (line.has("skuId") && !line.isNull("skuId")) line.getString("skuId") else "",
+                            )
                         }, order.getInt("totalCents"), order.getString("serviceMode"), order.getInt("partySize"),
                         order.getJSONArray("allergens").allergens(), order.getString("paymentMethod"),
                         if (order.has("summaryId") && !order.isNull("summaryId")) order.getString("summaryId") else null)
@@ -153,7 +223,8 @@ internal class StateStore(file: File) {
                     .put("totalCents", order.totalCents).put("serviceMode", order.serviceMode).put("partySize", order.partySize)
                     .put("allergens", JSONArray(order.allergens.map { it.name })).put("paymentMethod", order.paymentMethod)
                     .put("lines", JSONArray(order.lines.map {
-                        JSONObject().put("name", it.name).put("quantity", it.quantity).put("options", it.options).put("unitPriceCents", it.unitPriceCents)
+                        JSONObject().put("name", it.name).put("quantity", it.quantity).put("options", it.options)
+                            .put("unitPriceCents", it.unitPriceCents).put("skuId", it.skuId)
                     }))
             }))
         val output = try {

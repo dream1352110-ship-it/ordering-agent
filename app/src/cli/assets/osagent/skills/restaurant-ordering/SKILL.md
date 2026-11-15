@@ -1,11 +1,11 @@
 ---
 name: 餐厅点餐
-description: "处理餐饮推荐、询价、加减餐、规格、就餐设置、过敏要求与核对提交；依据内嵌菜单或查询结果选择商品与完整规格，普通修改作用执行时当前购物车，按需查询状态，经用户核对和确认后提交演示订单。"
+description: "处理餐饮推荐、询价、加减餐、规格、就餐设置、过敏要求与核对提交；选品必须使用list-menu或search-menu返回的门店商品和完整规格，普通修改作用执行时当前购物车，按需查询状态，经用户核对和确认后提交门店订单。"
 ---
 
 # 餐厅点餐
 
-执行契约：current-cart-v2。使用以下14个命令完成点餐，商品与规格依据下方菜单快照或查询结果。
+执行契约：current-cart-v2。使用以下15个命令完成点餐。商品与规格必须来自 `list-menu` 或 `search-menu` 的门店结果，内嵌快照不能当作当前菜单。
 
 ## 当前购物车
 
@@ -13,15 +13,15 @@ description: "处理餐饮推荐、询价、加减餐、规格、就餐设置、
 
 明确选品和完整设置可直接执行。`sm-oscap-cli ordering get-cart --json '{}'` 用于查看车、取得仍存在的 cartItemId、了解现有要求，或补齐核对与重置所需的新鲜身份和版本。仍适用的新执行结果可直接复用；外部变化、冲突或只有重放收据时，按需查询状态。命令失败或输出无法解析就停止依赖该状态的操作，不猜条目ID、订单ID或版本，不要求用户口述ID。
 
-只使用明确归属当前单的需求；身份未知时请用户重新表达，不引用或泄露其他单内容。普通修改保持订单ID，新建与提交成功会换单。换单后采用当前车实际要求和本次明示需求，不继承旧偏好、预算、报价或确认；静态菜单快照仍可用于选品。
+只使用明确归属当前单的需求；身份未知时请用户重新表达，不引用或泄露其他单内容。普通修改保持订单ID，新建与提交成功会换单。换单后采用当前车实际要求和本次明示需求，不继承旧偏好、预算、报价或确认；内嵌快照不是门店菜单，不能用于选品。
 
 ## 选品与规格
 
-名称及括号内别名用于匹配，写入使用稳定 itemId。名称和规格明确时直接使用快照；缺失、含义不明、规格无效或快照版本不符时，用批量查询补查，仍不明确则询问用户，不猜ID或静默换商品。例如“拿铁”可能指醇香拿铁或抹茶拿铁，须结合用户表达确定。
+写入使用 `list-menu` 或 `search-menu` 返回的 itemId 与完整 options。不要把内嵌快照中的演示商品写入购物车。名称不唯一或查询未命中时询问用户，不猜ID或静默换商品。
 
 groups 引用规格组，默认映射执行时转为字符串JSON对象，如 `{size=medium,temperature=hot,sugar=none}` 转为 `{"size":"medium","temperature":"hot","sugar":"none"}`。options 必须包含商品支持的全部规格键且无额外键，无规格传 `{}`。未指定项采用默认值并说明，指定项使用真实选项ID；不将无效要求静默改成默认值。
 
-快照仅提供选品与规格，不包含价格、库存、配料或安全结论。涉及过敏、成分或原有糖时查询目标商品资料；资料不完整或需求不支持时说明无法确认并咨询工作人员。图片、“无糖”或“不额外加糖”均不能证明没有原有糖或过敏风险；本地演示资料也不是实店安全保证。
+价格、库存、配料和过敏结论以商品详情或批量查询为准。资料不完整或需求不支持时说明无法确认并咨询工作人员。图片、“无糖”或“不额外加糖”均不能证明没有原有糖或过敏风险。
 
 <!-- ordering-menu-snapshot:begin -->
 Source: DemoMenu.items / MenuItem.defaults; format=ordering-menu-v1; menu-sha256=fc47d5ea2e59ce9193ead7c05d1f2b658bb69aa80edda85d8f56b900532d162c; items=37
@@ -86,7 +86,7 @@ sm-oscap-cli ordering get-menu-item --json '{"itemId":"latte"}'
 sm-oscap-cli ordering calculate-price --json '{"items":[{"itemId":"fries","quantity":2,"options":{}}]}'
 ```
 
-批量查询至少一个非空 names/itemIds 数组，名称子串与精确ID取并集去重、按菜单顺序返回；检查 unmatchedNames/unmatchedItemIds。结果含价格、库存、完整规格及默认值、过敏资料和冲突，优先于快照。浏览菜单可用 `{}` 返回全部，不传 all 分类；配料和份量使用商品详情查询。独立只读查询可并行，依赖前一步结果的请求须等待，购物车修改按顺序执行。
+批量查询至少一个非空 names/itemIds 数组，名称子串与精确ID取并集去重、按菜单顺序返回；检查 unmatchedNames/unmatchedItemIds。结果含价格、库存、完整规格及默认值、过敏资料和冲突，这是选品依据。浏览菜单可用 `{}` 返回门店全部在售商品，分类ID以当次返回为准，不传 all；配料和份量使用商品详情查询。独立只读查询可并行，依赖前一步结果的请求须等待，购物车修改按顺序执行。
 
 推荐与预算组合由模型选择，金额由应用计算，CNY整数分换算元展示。试算 items 非空，每项 itemId、数量1至99及完整 options 必填；检查 complete、逐项 valid/issues，不能把 validLinesTotalCents 当完整报价。试算不改车、不锁库存、不生成提交凭证。
 
@@ -132,6 +132,12 @@ sm-oscap-cli ordering submit-demo-order --json '{"orderId":"actual-order-id","su
 
 用户已核对且凭证有效后才提交，必填实际当前 orderId、summaryId、绑定版本 expectedCartVersion 和新 requestId，并完成本次真实用户确认。仅提交准备产生确认明细，准备只读，不是授权；其他命令准备仅校验语法和JSON。不传 confirmed 或额外确认字段；拒绝、取消、确认不可用或准备失败时停止。购物车变更、凭证过期或重启丢失后，须重新生成核对单并展示确认。
 
-执行复核身份、版本、期限、库存及过敏要求。仅成功 status=simulated、paymentProcessed=false 才报告完成单号和金额，无真实扣款或厨房通知。顶层 orderId/order.orderId 属于完成单，nextOrderId/cartVersion 是当时新车快照；后续普通修改省略 orderId，不携带完成单ID。原请求重放不重复下单，新 requestId 不能复用已完成核对单绕过确认。
+执行复核身份、版本、期限、库存及过敏要求，并向门店创单。成功时读取 status、paymentProcessed、gaap 和 storeOrder；paymentProcessed=false 表示本机未扣款。gaap.gaapOrderId 是门店订单号。用 gaap.displayOrderNo 或 storeOrder.collectNo 报告取餐号，没有则说明尚未发号。顶层 orderId/order.orderId 属于完成单，nextOrderId/cartVersion 是当时新车快照；后续普通修改省略 orderId，不携带完成单ID。原请求重放不重复下单，新 requestId 不能复用已完成核对单绕过确认。
+
+```sh
+sm-oscap-cli ordering get-store-order --json '{"orderId":"<gaap.gaapOrderId>"}'
+```
+
+查询门店订单的状态、金额和明细。店员改单或结账后，用同一个门店订单号再次执行刷新，不要根据本地购物车猜测。
 
 身份或版本冲突时查询当前车、理解变化再决策，不仅替换ID/版本重发。商品、条目、规格、库存或过敏失败时按原因查询、修正或咨询工作人员，不盲重试；核对凭证缺失或过期则重新核对。失败或不确定不报告成功，保存或内部错误不泄露诊断，结果不确定只用原 requestId 和原参数重试。

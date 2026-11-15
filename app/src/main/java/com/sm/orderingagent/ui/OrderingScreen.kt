@@ -181,7 +181,7 @@ fun OrderingScreen(vm: OrderingViewModel) {
                                     .verticalScroll(rememberScrollState()).padding(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
-                                DemoMenu.categories.forEach { label ->
+                                vm.categories.forEach { label ->
                                     FilterChip(
                                         selected = category == label,
                                         onClick = { category = label },
@@ -208,7 +208,7 @@ fun OrderingScreen(vm: OrderingViewModel) {
                                     contentPadding = PaddingValues(horizontal = 12.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    items(DemoMenu.categories) { label ->
+                                    items(vm.categories) { label ->
                                         FilterChip(category == label, { category = label }, { Text(label) })
                                     }
                                 }
@@ -366,7 +366,7 @@ fun OrderingScreen(vm: OrderingViewModel) {
                             Column(Modifier.weight(1f)) {
                                 Text("订单 ${order.number}", fontWeight = FontWeight.Bold)
                                 Text(orderTime(order.createdAt), style = MaterialTheme.typography.bodySmall)
-                                Text("${order.serviceMode} · ${order.lines.sumOf { it.quantity }} 件 · 模拟订单", style = MaterialTheme.typography.bodySmall)
+                                Text("${order.serviceMode} · ${order.lines.sumOf { it.quantity }} 件 · 门店订单", style = MaterialTheme.typography.bodySmall)
                             }
                             Text(money(order.totalCents), color = PriceRed)
                             Icon(Icons.Outlined.History, "查看订单${order.number}回执")
@@ -641,9 +641,9 @@ private fun CheckoutDialog(review: Review, menu: List<MenuItem>, error: String?,
                     if (!onSubmit(payment)) submitting = false
                 }
             }, enabled = !submitting, modifier = Modifier.fillMaxWidth().testTag("submit-order"),
-        ) { Text(if (submitting) "正在提交" else "确认模拟下单 · ${money(review.quote.totalCents)}") }
+        ) { Text(if (submitting) "正在提交" else "确认提交门店订单 · ${money(review.quote.totalCents)}") }
     }) {
-        Text("模拟下单，不会发起真实支付或扣款。", color = PriceRed, fontWeight = FontWeight.Bold)
+        Text("订单提交到门店，本机不扣款。", color = PriceRed, fontWeight = FontWeight.Bold)
         Text("${review.state.serviceMode} · ${review.state.partySize} 人")
         Text("过敏原要求：${allergenNames(review.state.allergens)}")
         HorizontalDivider()
@@ -652,12 +652,12 @@ private fun CheckoutDialog(review: Review, menu: List<MenuItem>, error: String?,
             SummaryLine(product.name, line.quantity, product.optionText(line.options), product.unitPrice(line.options) * line.quantity)
         }
         HorizontalDivider()
-        Text("模拟付款方式", fontWeight = FontWeight.Bold)
+        Text("到店付款方式", fontWeight = FontWeight.Bold)
         listOf("扫码支付", "现金").forEach { method ->
             Surface(onClick = { payment = method }, color = Color.Transparent) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(payment == method, onClick = { payment = method })
-                    Text("$method（模拟）")
+                    Text(method)
                 }
             }
         }
@@ -673,8 +673,8 @@ private fun ReceiptDialog(order: Order, success: Boolean, onDismiss: () -> Unit)
         Icon(Icons.Outlined.CheckCircle, null, Modifier.size(40.dp), tint = Forest)
         Text("订单 ${order.number}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(orderTime(order.createdAt), style = MaterialTheme.typography.bodySmall)
-        Text("模拟订单 · 未产生真实扣款", color = PriceRed)
-        Text("${order.serviceMode} · ${order.partySize} 人 · ${order.paymentMethod}（模拟）")
+        Text("门店订单 · 本机未扣款", color = PriceRed)
+        Text("${order.serviceMode} · ${order.partySize} 人 · ${order.paymentMethod}")
         Text("过敏原要求：${allergenNames(order.allergens)}")
         HorizontalDivider()
         order.lines.forEach { SummaryLine(it.name, it.quantity, it.options, it.unitPriceCents * it.quantity) }

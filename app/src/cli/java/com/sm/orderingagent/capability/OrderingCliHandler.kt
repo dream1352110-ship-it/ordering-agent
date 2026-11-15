@@ -125,6 +125,7 @@ class OrderingCliHandler(
             "calculate-price" to "{\"items\":[{\"itemId\":\"fries\",\"quantity\":1,\"options\":{}}]}",
             "open-checkout" to "{\"expectedCartVersion\":1}",
             "submit-demo-order" to "{\"requestId\":\"submit-1\",\"orderId\":\"<orderId>\",\"expectedCartVersion\":1,\"summaryId\":\"<summaryId>\"}",
+            "get-store-order" to "{\"orderId\":\"<gaapOrderId>\"}",
         )
     }
 }

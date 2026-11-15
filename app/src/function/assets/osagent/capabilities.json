@@ -5,14 +5,13 @@
     {
       "id": "list-menu",
       "function": {
-        "description": "只读浏览本地演示菜单，返回商品ID、CNY整数分价格、库存和规格摘要。categoryId可选，省略返回全部；商品与规格明确时可直接使用Skill菜单快照。",
+        "description": "只读浏览门店在售菜单，返回商品ID、CNY整数分价格、库存和规格摘要。categoryId可选，必须使用本次返回的分类ID；选品与加购使用本次返回的itemId和defaultOptions。",
         "parameters": {
           "type": "object",
           "properties": {
             "categoryId": {
               "type": "string",
-              "description": "可选分类ID；不传表示全部，不存在all分类ID。",
-              "enum": ["main", "light", "snacks", "bakery", "coffee", "tea", "cold-drinks"]
+              "description": "可选分类ID，取自本次list-menu返回的categoryId；不传表示全部，不存在all分类ID。"
             }
           },
           "required": []
@@ -24,11 +23,11 @@
     {
       "id": "get-menu-item",
       "function": {
-        "description": "按稳定itemId只读查询完整商品资料：配料、份量、CNY整数分价格、库存、规格及默认值、含有和可能接触的过敏原、资料完整性。资料为本地模拟数据，未列出的过敏原不代表安全。",
+        "description": "按门店itemId只读查询完整商品资料：配料、份量、CNY整数分价格、库存、规格及默认值、含有和可能接触的过敏原、资料完整性。itemId必须来自list-menu或search-menu。未列出的过敏原不代表安全。",
         "parameters": {
           "type": "object",
           "properties": {
-            "itemId": { "type": "string", "description": "Skill菜单快照或菜单接口提供的稳定商品ID，不是商品名称。" }
+            "itemId": { "type": "string", "description": "list-menu或search-menu返回的门店商品ID，不是商品名称，也不是内嵌演示快照ID。" }
           },
           "required": ["itemId"]
         }
@@ -142,11 +141,11 @@
         "parameters": {
           "type": "object",
           "properties": {
-            "itemId": { "type": "string", "description": "Skill菜单快照或菜单接口提供的稳定商品ID。" },
+            "itemId": { "type": "string", "description": "list-menu或search-menu返回的门店商品ID。" },
             "quantity": { "type": "integer", "description": "本次增加数量，整数1至99；同商品同规格合并，库存按商品跨规格汇总校验。" },
             "options": {
               "type": "object",
-              "description": "商品支持的全部规格键及字符串选项ID，取自Skill快照或菜单查询；无规格传{}，应用不自动补默认值。",
+              "description": "商品支持的全部规格键及字符串选项ID，取自list-menu或search-menu；无规格传{}，应用不自动补默认值。",
               "properties": {
                 "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
                 "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
@@ -283,7 +282,7 @@
     {
       "id": "submit-demo-order",
       "function": {
-        "description": "提交用户已核对且仍有效的演示订单，必填summaryId、orderId、requestId和expectedCartVersion，并须完成真实用户确认。执行复核身份、版本、期限、库存和过敏要求；不接受confirmed参数。成功status=simulated、paymentProcessed=false；orderId为完成单，nextOrderId/cartVersion为当时新车快照。持久收据重放不重复下单，也不代表当前状态。",
+        "description": "提交用户已核对且仍有效的门店订单，必填summaryId、orderId、requestId和expectedCartVersion，并须完成真实用户确认。执行复核身份、版本、期限、库存和过敏要求后调用门店创单；不接受confirmed参数。成功时读取status、paymentProcessed和gaap，paymentProcessed=false表示本机未扣款。orderId为完成单，nextOrderId/cartVersion为当时新车快照。持久收据重放不重复下单，也不代表当前状态。",
         "parameters": {
           "type": "object",
           "properties": {
@@ -297,13 +296,28 @@
       },
       "execution": { "timeoutMs": 15000 },
       "confirmation": { "mode": "confirm" }
+    },
+    {
+      "id": "get-store-order",
+      "function": {
+        "description": "按门店订单号查询 queryOrderInfo 快照，包含状态、金额、明细和取餐号。orderId 使用提交结果里的 gaap.gaapOrderId。店员改单或结账后用同一订单号再次查询刷新，不要凭本地购物车猜测。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "orderId": { "type": "string", "description": "createOrderV3 返回并保存在 gaap.gaapOrderId 的门店订单号。" }
+          },
+          "required": ["orderId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
     }
   ],
   "skills": [
     {
       "id": "restaurant-ordering",
       "name": "@string/restaurant_ordering_skill_name",
-      "description": "处理餐饮推荐、询价、加减餐、规格、就餐设置、过敏要求与核对提交；依据内嵌菜单或查询结果选择商品与完整规格，普通修改作用执行时当前购物车，按需查询状态，经用户核对和确认后提交演示订单。",
+      "description": "处理餐饮推荐、询价、加减餐、规格、就餐设置、过敏要求与核对提交；选品必须使用list-menu或search-menu返回的门店商品和完整规格，普通修改作用执行时当前购物车，按需查询状态，经用户核对和确认后提交门店订单。",
       "path": "osagent/skills/restaurant-ordering/SKILL.md",
       "functionIds": [
         "list-menu",
@@ -319,7 +333,8 @@
         "set-allergy-requirements",
         "calculate-price",
         "open-checkout",
-        "submit-demo-order"
+        "submit-demo-order",
+        "get-store-order"
       ]
     }
   ]

@@ -29,21 +29,24 @@ data class OrderingOperationResult(
 class OrderingOperations(
     private val application: Application,
     private val launchActivity: (Intent) -> Unit = { application.startActivity(it) },
+    val gaapPosGateway: com.sm.orderingagent.gateway.GaapPosGateway = com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway(),
 ) {
     private val main = Handler(Looper.getMainLooper())
     private val session: OrderingSession get() = OrderingSession.get(application)
-    private val categories = linkedMapOf(
-        "main" to "主食", "light" to "轻食", "snacks" to "小食",
-        "bakery" to "烘焙", "coffee" to "咖啡", "tea" to "茶饮", "cold-drinks" to "冷饮",
+    private val legacyCategoryIds = mapOf(
+        "主食" to "main", "轻食" to "light", "小食" to "snacks",
+        "烘焙" to "bakery", "咖啡" to "coffee", "茶饮" to "tea", "冷饮" to "cold-drinks",
     )
 
     fun prepareConfirmation(raw: String): String = try {
+        ensureLiveMenu()
         onMain { confirmation(parse(raw)) }
     } catch (failure: OperationFailure) {
         throw OrderingException(failure.message ?: "Operation failed", failure.code)
     }
 
     fun execute(id: String, raw: String): OrderingOperationResult = try {
+        ensureLiveMenu()
         val result = onMain { dispatch(id, parse(raw)) }
         OrderingOperationResult(success = true, resultJson = result.toString())
     } catch (failure: Exception) {
@@ -59,12 +62,27 @@ class OrderingOperations(
         )
     }
 
+    fun reportHandover(customerUtterance: String, failureReason: String): com.sm.orderingagent.gateway.HandoverResponse {
+        val cart = session.state.cart
+        val orderId = session.state.currentOrderId
+        return gaapPosGateway.reportHandover(
+            com.sm.orderingagent.gateway.HandoverRequest(
+                sessionId = "SESS-$orderId",
+                currentOrderId = orderId,
+                cartItems = cart,
+                customerUtterance = customerUtterance,
+                failureReason = failureReason,
+            ),
+        )
+    }
+
     private fun dispatch(id: String, args: JSONObject): JSONObject {
         if (id in writeOperationIds) completed(id, args)?.let { return it }
         return when (id) {
             "list-menu" -> {
                 keys(args, setOf("categoryId"))
                 val category = if (args.has("categoryId")) text(args, "categoryId") else null
+                val categories = categoryCatalog()
                 if (category != null && category !in categories) fail("INVALID_ARGUMENT", "Unknown categoryId")
                 base()
                     .put(
@@ -127,6 +145,7 @@ class OrderingOperations(
                 }
             }
             "calculate-price" -> calculate(args)
+            "get-store-order" -> storeOrder(args)
             "open-checkout" -> {
                 keys(args, setOf("expectedCartVersion"))
                 checkVersion(version(args), session.state.version)
@@ -143,9 +162,25 @@ class OrderingOperations(
                     checkout(summaryId)
                     val order = submit(summaryId, "扫码支付")
                     committedOrder = order
+                    val gaapResult = gaapPosGateway.submitOrder(order, summaryId, state.serviceMode)
+                    if (!gaapResult.isSuccess) {
+                        fail(gaapResult.errorCode ?: "POS_SUBMIT_FAILED", gaapResult.errorMessage ?: "门店创单失败")
+                    }
+                    val storeOrder = storeOrderSnapshot(gaapResult.gaapOrderId)
+                    val liveStore = gaapPosGateway is com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway
                     base(state.version, order.id).put("nextOrderId", state.currentOrderId)
-                        .put("status", "simulated").put("paymentProcessed", false)
+                        .put("status", if (liveStore) gaapResult.status else "simulated").put("paymentProcessed", false)
                         .put("summaryId", summaryId).put("order", orderJson(order))
+                        .put(
+                            "gaap",
+                            JSONObject()
+                                .put("gaapOrderId", gaapResult.gaapOrderId)
+                                .put("displayOrderNo", gaapResult.displayOrderNo)
+                                .put("pickupWindow", gaapResult.pickupWindow)
+                                .put("estimatedWaitSeconds", gaapResult.estimatedWaitSeconds)
+                                .put("status", gaapResult.status),
+                        )
+                        .apply { if (storeOrder != null) put("storeOrder", storeOrder) }
                         .put("ui", JSONObject().put("screenState", "requested").put("foregroundGuaranteed", false))
                 }
                 committedOrder?.let { order ->
@@ -279,7 +314,8 @@ class OrderingOperations(
         completed("submit-demo-order", args)?.let { result ->
             val order = result.getJSONObject("order")
             val summaryId = result.getString("summaryId")
-            return "该模拟订单已提交，重试只返回原结果，不会再次下单或扣款。订单：${order.getString("number")}，核对单：$summaryId，合计 CNY ${amount(order.getInt("totalCents"))}。"
+            val replay = if (session.usesLocalDemoMenu) "该模拟订单已提交，重试只返回原结果，不会再次下单或扣款。" else "该门店订单已提交，重试只返回原结果，不会再次创单。"
+            return "$replay 订单：${order.getString("number")}，核对单：$summaryId，合计 CNY ${amount(order.getInt("totalCents"))}。"
         }
         keys(args, writeKeys + setOf("summaryId", "expectedCartVersion"))
         text(args, "requestId")
@@ -291,7 +327,12 @@ class OrderingOperations(
             checkVersion(expected, state.version)
             val quote = checkout(summaryId)
             buildString {
-                append("确认模拟下单？不会真实扣款或通知厨房。\n核对单：").append(quote.id)
+                if (session.usesLocalDemoMenu) {
+                    append("确认模拟下单？不会真实扣款或通知厨房。\n核对单：")
+                } else {
+                    append("确认提交门店订单？本机不扣款，订单将发送到门店。\n核对单：")
+                }
+                append(quote.id)
                 append("\n购物车版本：").append(state.version)
                 state.cart.forEachIndexed { index, line ->
                     val product = item(line.itemId)
@@ -307,7 +348,12 @@ class OrderingOperations(
                 append("\n过敏原要求：").append(state.allergens.sortedBy(::allergenId)
                     .joinToString { "${allergenId(it)} (${it.label})" }.ifEmpty { "未设置" })
                 append("\n用餐方式：").append(state.serviceMode).append("；人数：").append(state.partySize)
-                append("\n付款方式：扫码支付（模拟）。\n").append(disclaimer)
+                if (session.usesLocalDemoMenu) {
+                    append("\n付款方式：扫码支付（模拟）。\n")
+                } else {
+                    append("\n付款方式：到店支付，本机不扣款。\n")
+                }
+                append(disclaimer)
             }
         }
     }
@@ -370,17 +416,21 @@ class OrderingOperations(
 
     private fun productJson(product: MenuItem): JSONObject {
         val remaining = session.remainingStock(product.id)
+        val categoryId = product.categoryId.ifBlank {
+            categoryCatalog().entries.firstOrNull { it.value == product.category }?.key.orEmpty()
+        }
         return JSONObject().put("itemId", product.id).put("name", product.name)
-            .put("categoryId", categories.entries.firstOrNull { it.value == product.category }?.key ?: JSONObject.NULL)
+            .put("categoryId", if (categoryId.isBlank()) JSONObject.NULL else categoryId)
             .put("categoryName", product.category).put("priceCents", product.priceCents)
-            .put("currency", "CNY").put("description", product.description).put("ingredients", product.ingredients)
+            .put("currency", product.currency.ifBlank { storeCurrency() }).put("description", product.description).put("ingredients", product.ingredients)
             .put("portion", product.portion).put("stock", remaining).put("available", remaining > 0)
             .put("status", if (remaining > 0) "available" else "sold-out")
             .put("contains", allergensJson(product.contains)).put("mayContain", allergensJson(product.mayContain))
             .put("allergenInfoComplete", product.allergenInfoComplete).put("conflicts", JSONArray(session.risks(product)))
             .put("defaultOptions", JSONObject(product.defaults)).put("optionGroups", JSONArray(product.options.map { group ->
                 JSONObject().put("id", group.id).put("name", group.label).put("defaultId", group.defaultId)
-                    .put("required", true).put("choices", JSONArray(group.choices.map { choice ->
+                    .put("required", group.kind == "option" || group.kind == "spec").put("kind", group.kind)
+                    .put("choices", JSONArray(group.choices.map { choice ->
                         JSONObject().put("id", choice.id).put("name", choice.label).put("extraCents", choice.extraCents)
                     }))
             }))
@@ -389,22 +439,25 @@ class OrderingOperations(
     private fun quoteJson(quote: CheckoutQuote): JSONObject = JSONObject()
         .put("orderId", session.state.currentOrderId)
         .put("summaryId", quote.id).put("cartVersion", quote.version).put("totalCents", quote.totalCents)
-        .put("currency", "CNY").put("createdAt", quote.createdAt).put("expiresAt", quote.createdAt + 300_000L)
+        .put("currency", storeCurrency()).put("createdAt", quote.createdAt).put("expiresAt", quote.createdAt + 300_000L)
 
     private fun orderJson(order: Order): JSONObject = JSONObject()
         .put("orderId", order.id).put("number", order.number).put("createdAt", order.createdAt)
         .put("summaryId", order.summaryId ?: JSONObject.NULL).put("totalCents", order.totalCents)
-        .put("currency", "CNY").put("serviceMode", order.serviceMode).put("partySize", order.partySize)
+        .put("currency", order.lines.firstOrNull()?.currency?.ifBlank { storeCurrency() } ?: storeCurrency())
+        .put("serviceMode", order.serviceMode).put("partySize", order.partySize)
         .put("allergenIds", allergensJson(order.allergens)).put("paymentMethod", order.paymentMethod)
-        .put("isDemo", true).put("status", "simulated").put("paymentProcessed", false)
+        .put("isDemo", session.usesLocalDemoMenu).put("status", if (session.usesLocalDemoMenu) "simulated" else "submitted")
+        .put("paymentProcessed", false)
         .put("lines", JSONArray(order.lines.map { line ->
             JSONObject().put("name", line.name).put("quantity", line.quantity).put("optionText", line.options)
-                .put("unitPriceCents", line.unitPriceCents).put("subtotalCents", line.unitPriceCents * line.quantity)
+                .put("unitPriceCents", line.unitPriceCents).put("skuId", line.skuId)
+                .put("subtotalCents", line.unitPriceCents * line.quantity)
         }))
 
     private fun base(version: Long = session.state.version, orderId: String = session.state.currentOrderId): JSONObject = JSONObject()
         .put("orderId", orderId)
-        .put("isDemo", true).put("currency", "CNY").put("cartVersion", version).put("allergenDisclaimer", disclaimer)
+        .put("isDemo", session.usesLocalDemoMenu).put("currency", storeCurrency()).put("cartVersion", version).put("allergenDisclaimer", disclaimer)
 
     private fun allergenDefinitions(): JSONArray = JSONArray(Allergen.entries.map {
         JSONObject().put("id", allergenId(it)).put("name", it.label)
@@ -504,6 +557,59 @@ class OrderingOperations(
         }
     }
 
+    private fun categoryCatalog(): Map<String, String> {
+        val used = mutableSetOf<String>()
+        return session.menu.distinctBy { it.category }.associate { item ->
+            val base = item.categoryId.ifBlank {
+                legacyCategoryIds[item.category] ?: "c" + item.category.hashCode().toUInt().toString(16)
+            }
+            var id = base
+            var suffix = 2
+            while (!used.add(id)) {
+                id = "$base-$suffix"
+                suffix++
+            }
+            id to item.category
+        }
+    }
+
+    private fun storeCurrency(): String =
+        session.menu.firstOrNull { it.currency.isNotBlank() }?.currency ?: "CNY"
+
+    private fun storeOrder(args: JSONObject): JSONObject {
+        keys(args, setOf("orderId"))
+        val orderId = text(args, "orderId")
+        val snapshot = storeOrderSnapshot(orderId)
+            ?: fail("STORE_ORDER_UNAVAILABLE", "门店订单不存在或暂时无法查询")
+        return base().put("storeOrder", snapshot)
+    }
+
+    private fun storeOrderSnapshot(orderId: String): JSONObject? {
+        val gateway = gaapPosGateway as? com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway ?: return null
+        return try {
+            val response = gateway.queryOrderInfo(orderId)
+            val code = response.optInt("code", -1)
+            if (code == 1 && response.optBoolean("success", false)) response.optJSONObject("data") else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun ensureLiveMenu() {
+        if (session.usesLocalDemoMenu) return
+        try {
+            val gateway = gaapPosGateway as? com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway
+                ?: throw OrderingException("未配置门店菜单网关", "MENU_UNAVAILABLE")
+            session.ensureLiveMenu {
+                com.sm.orderingagent.gateway.MaxIotMenuConverter.convert(gateway.fetchRealMenuProducts())
+            }
+        } catch (failure: OrderingException) {
+            throw failure
+        } catch (failure: Exception) {
+            throw OrderingException(failure.message ?: "门店菜单加载失败", "MENU_UNAVAILABLE")
+        }
+    }
+
     private fun fail(code: String, message: String): Nothing = throw OperationFailure(code, message)
     private class OperationFailure(val code: String, message: String) : IllegalArgumentException(message)
     private data class PriceSpec(val itemId: String, val quantity: Int, val options: Map<String, String>)
@@ -538,6 +644,7 @@ class OrderingOperations(
             "list-menu", "get-menu-item", "search-menu", "get-cart", "apply-cart-changes", "start-new-order", "set-dining-settings",
             "add-cart-item", "update-cart-item",
             "remove-cart-item", "set-allergy-requirements", "calculate-price", "open-checkout", "submit-demo-order",
+            "get-store-order",
         )
     }
 }

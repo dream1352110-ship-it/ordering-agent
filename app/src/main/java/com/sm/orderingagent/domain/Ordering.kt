@@ -7,7 +7,13 @@ enum class Allergen(val label: String) {
 }
 
 data class Choice(val id: String, val label: String, val extraCents: Int = 0)
-data class OptionGroup(val id: String, val label: String, val choices: List<Choice>, val defaultId: String)
+data class OptionGroup(
+    val id: String,
+    val label: String,
+    val choices: List<Choice>,
+    val defaultId: String,
+    val kind: String = "option",
+)
 data class MenuItem(
     val id: String,
     val name: String,
@@ -22,23 +28,43 @@ data class MenuItem(
     val allergenInfoComplete: Boolean = true,
     val stock: Int = 20,
     val options: List<OptionGroup> = emptyList(),
+    val currency: String = "CNY",
+    val categoryId: String = "",
+    val spuId: String = "",
 ) {
     val available: Boolean get() = stock > 0
-    val defaults: Map<String, String> get() = options.associate { it.id to it.defaultId }
+    val defaults: Map<String, String> get() = options
+        .filter { it.kind == "option" || it.kind == "spec" }
+        .filter { it.defaultId.isNotBlank() }
+        .associate { it.id to it.defaultId }
     fun unitPrice(selection: Map<String, String>): Int {
-        if (selection.keys != options.map { it.id }.toSet()) throw OrderingException("请选择完整规格", "INVALID_OPTIONS")
-        return priceCents + options.sumOf { group ->
-            group.choices.firstOrNull { it.id == selection[group.id] }?.extraCents
+        val required = options.filter { it.kind == "option" || it.kind == "spec" }.map { it.id }.toSet()
+        val allowed = options.map { it.id }.toSet()
+        if (!selection.keys.containsAll(required) || selection.keys.any { it !in allowed }) {
+            throw OrderingException("请选择完整规格", "INVALID_OPTIONS")
+        }
+        return priceCents + selection.entries.sumOf { (groupId, choiceId) ->
+            val group = options.first { it.id == groupId }
+            group.choices.firstOrNull { it.id == choiceId }?.extraCents
                 ?: throw OrderingException("${group.label}选项无效", "INVALID_OPTIONS")
         }
     }
-    fun optionText(selection: Map<String, String>): String = options.joinToString(" / ") { group ->
-        group.choices.firstOrNull { it.id == selection[group.id] }?.label ?: "未选择"
-    }
+    fun optionText(selection: Map<String, String>): String = options.mapNotNull { group ->
+        group.choices.firstOrNull { it.id == selection[group.id] }?.label
+    }.joinToString(" / ")
 }
 
 data class CartItem(val id: String, val itemId: String, val quantity: Int, val options: Map<String, String>)
-data class OrderLine(val name: String, val quantity: Int, val options: String, val unitPriceCents: Int)
+data class OrderLine(
+    val name: String,
+    val quantity: Int,
+    val options: String,
+    val unitPriceCents: Int,
+    val skuId: String = "",
+    val currency: String = "CNY",
+    val customizationIds: List<String> = emptyList(),
+    val ingredientIds: List<String> = emptyList(),
+)
 data class Order(
     val id: String,
     val number: String,
@@ -100,9 +126,10 @@ class OrderingEngine(val menu: List<MenuItem>, initial: OrderingState = Ordering
         if (orderId != state.currentOrderId) throw OrderingException("Order changed; read the current cart", "ORDER_ID_CONFLICT")
     }
 
-    fun item(id: String): MenuItem = byId[id] ?: throw OrderingException("商品不存在", "ITEM_NOT_FOUND")
-    fun unitPrice(line: CartItem): Int = item(line.itemId).unitPrice(line.options)
-    fun totalCents(): Int = state.cart.sumOf { unitPrice(it) * it.quantity }
+    fun item(id: String): MenuItem = byId[id] ?: menu.firstOrNull { it.id == id } ?: throw OrderingException("商品不存在", "ITEM_NOT_FOUND")
+    fun safeItem(id: String): MenuItem? = byId[id] ?: menu.firstOrNull { it.id == id }
+    fun unitPrice(line: CartItem): Int = (safeItem(line.itemId) ?: item(line.itemId)).unitPrice(line.options)
+    fun totalCents(): Int = state.cart.sumOf { (safeItem(it.itemId)?.unitPrice(it.options) ?: 0) * it.quantity }
     fun quantity(itemId: String): Int = state.cart.filter { it.itemId == itemId }.sumOf { it.quantity }
 
     fun risks(product: MenuItem): List<String> = buildList {
@@ -205,7 +232,19 @@ class OrderingEngine(val menu: List<MenuItem>, initial: OrderingState = Ordering
         require(paymentMethod in listOf("扫码支付", "现金"))
         val order = Order(
             state.currentOrderId, "A%03d".format(state.orders.size + 1), now,
-            state.cart.map { OrderLine(item(it.itemId).name, it.quantity, item(it.itemId).optionText(it.options), unitPrice(it)) },
+            state.cart.map {
+                val product = item(it.itemId)
+                OrderLine(
+                    product.name,
+                    it.quantity,
+                    product.optionText(it.options),
+                    unitPrice(it),
+                    MenuCatalog.skuId(it.itemId, it.options),
+                    product.currency,
+                    MenuCatalog.selectedIds(product, it.options, "customization"),
+                    MenuCatalog.selectedIds(product, it.options, "ingredient"),
+                )
+            },
             quote.totalCents, state.serviceMode, state.partySize, state.allergens.toSet(), paymentMethod, quoteId,
         )
         submitted[quoteId] = order
@@ -228,3 +267,18 @@ class OrderingEngine(val menu: List<MenuItem>, initial: OrderingState = Ordering
 }
 
 fun money(cents: Int): String = "¥%d.%02d".format(cents / 100, cents % 100)
+
+object MenuCatalog {
+    fun acceptCloudMenu(realItems: List<MenuItem>): List<MenuItem> {
+        if (realItems.isEmpty()) throw OrderingException("门店菜单为空", "MENU_UNAVAILABLE")
+        return realItems.toList()
+    }
+
+    fun skuId(itemId: String, options: Map<String, String>): String =
+        options["spec"]?.takeIf { it.isNotBlank() } ?: itemId
+
+    fun selectedIds(item: MenuItem, options: Map<String, String>, kind: String): List<String> =
+        item.options.filter { it.kind == kind }.mapNotNull { group ->
+            options[group.id]?.takeIf { choiceId -> group.choices.any { it.id == choiceId } }
+        }
+}

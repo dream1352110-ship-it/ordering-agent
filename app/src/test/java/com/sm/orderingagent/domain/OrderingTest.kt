@@ -140,6 +140,19 @@ class OrderingTest {
         assertEquals(before, engine.state)
     }
 
+    @Test fun cloudMenuReplacesDemoItemsAndSkuComesFromSpecOrItem() {
+        val cloud = DemoMenu.items.first().copy(id = "SKU-1", name = "门店茶")
+        assertEquals(listOf("SKU-1"), MenuCatalog.acceptCloudMenu(listOf(cloud)).map { it.id })
+        try {
+            MenuCatalog.acceptCloudMenu(emptyList())
+            fail()
+        } catch (failure: OrderingException) {
+            assertEquals("MENU_UNAVAILABLE", failure.code)
+        }
+        assertEquals("SKU-LARGE", MenuCatalog.skuId("SKU-BASE", mapOf("spec" to "SKU-LARGE")))
+        assertEquals("SKU-BASE", MenuCatalog.skuId("SKU-BASE", emptyMap()))
+    }
+
     @Test fun expandedCatalogHasUniqueItemsAndValidDefaultOptions() {
         assertEquals(37, DemoMenu.items.size)
         assertEquals(37, DemoMenu.items.map { it.id }.toSet().size)
