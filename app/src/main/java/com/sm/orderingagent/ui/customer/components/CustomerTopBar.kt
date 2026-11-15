@@ -59,7 +59,7 @@ fun CustomerTopBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 左侧：车道与品牌
+            // 左侧：车道芯片与 FLEX / VOICE 经典品牌标
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
@@ -88,23 +88,47 @@ fun CustomerTopBar(
                     )
                 }
 
-                Column {
-                    Text(
-                        text = "FLEX / VOICE",
-                        color = DemoInk,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Drive-through order journey",
-                        color = DemoInkSoft,
-                        fontSize = 11.sp
-                    )
+                // Demo 原版 3 条青柠绿柱品牌标
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(DemoInk),
+                        contentAlignment = Alignment.BottomCenter
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(3.dp),
+                            verticalAlignment = Alignment.Bottom,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        ) {
+                            Box(Modifier.width(4.dp).height(10.dp).clip(CircleShape).background(DemoLime))
+                            Box(Modifier.width(4.dp).height(16.dp).clip(CircleShape).background(DemoLime))
+                            Box(Modifier.width(4.dp).height(22.dp).clip(CircleShape).background(DemoLime))
+                        }
+                    }
+
+                    Column {
+                        Text(
+                            text = "FLEX / VOICE",
+                            color = DemoInk,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "Drive-through order journey",
+                            color = DemoInkSoft,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
 
-            // 中间：状态指示（如 Ready to order / AI 正在聆听中）
+            // 中间：状态指示（Ready to order / AI listening）
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(999.dp))
