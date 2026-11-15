@@ -76,10 +76,13 @@ class RealMaxIotGaapPosGateway(
             val success = responseJson.optBoolean("success", false)
             if (code == 1 && success) {
                 val data = responseJson.optJSONObject("data") ?: JSONObject()
-                val realOrderId = data.optString("orderId", order.id)
-                val storeSerial = data.optString("storeSerial", "0001")
+                val realOrderId = data.optString("orderId", "")
+                if (realOrderId.isBlank()) {
+                    return rejected("ORDER_ID_MISSING", "创单成功响应缺少 orderId", responseJson)
+                }
                 val collectNo = data.optString("collectNo", "")
-                val displayNo = if (collectNo.isNotEmpty()) collectNo else "#$storeSerial"
+                val storeSerial = data.optString("storeSerial", "")
+                val displayNo = collectNo.ifBlank { storeSerial }
                 val status = data.optString("status", "CREATE")
 
                 GaapSubmitResult(
@@ -92,32 +95,10 @@ class RealMaxIotGaapPosGateway(
                     rawResponse = responseJson.toString(),
                 )
             } else {
-                val msg = responseJson.optString("msg", "创单失败")
-                val shortSuffix = (Math.abs(order.id.hashCode()) % 900) + 100
-                GaapSubmitResult(
-                    isSuccess = false,
-                    gaapOrderId = "FALLBACK-${order.id}",
-                    displayOrderNo = "#A-$shortSuffix",
-                    pickupWindow = "1号取餐窗口",
-                    estimatedWaitSeconds = 120,
-                    status = "FALLBACK",
-                    errorCode = code.toString(),
-                    errorMessage = msg,
-                    rawResponse = responseJson.toString(),
-                )
+                rejected(code.toString(), responseJson.optString("msg", "创单失败"), responseJson)
             }
         } catch (ex: Exception) {
-            val shortSuffix = (Math.abs(order.id.hashCode()) % 900) + 100
-            GaapSubmitResult(
-                isSuccess = false,
-                gaapOrderId = "OFFLINE-${order.id}",
-                displayOrderNo = "#A-$shortSuffix",
-                pickupWindow = "1号取餐窗口",
-                estimatedWaitSeconds = 120,
-                status = "OFFLINE",
-                errorCode = "NETWORK_ERROR",
-                errorMessage = ex.message,
-            )
+            rejected("NETWORK_ERROR", ex.message ?: "创单结果待确认", null)
         }
     }
 
@@ -132,21 +113,39 @@ class RealMaxIotGaapPosGateway(
 
     override fun endSession(sessionId: String, reason: String): Boolean = true
 
+    fun queryMenuCategoryList(): JSONObject =
+        callMaxIotService("queryMenuCategoryList", serviceUri("queryMenuCategoryList"), menuQueryBody())
+
+    fun queryMenuProductInfo(spuId: String): JSONObject {
+        val body = menuQueryBody().put("spuId", spuId)
+        return callMaxIotService("queryMenuProductInfo", serviceUri("queryMenuProductInfo"), body)
+    }
+
     /**
-     * 拉取真实菜单商品列表
+     * 拉取真实菜单商品列表。先确认分类服务可用，展示分类仍以商品上的 category 为准。
      */
     fun fetchRealMenuProducts(pageSize: Int = 50): JSONObject {
+        val categories = queryMenuCategoryList()
+        if (!isBusinessSuccess(categories)) {
+            throw IllegalStateException(categories.optString("msg", "分类查询失败"))
+        }
         val first = fetchMenuPage(1, pageSize)
+        if (!isBusinessSuccess(first)) {
+            throw IllegalStateException(first.optString("msg", "商品查询失败"))
+        }
         val data = first.optJSONObject("data") ?: return first
         val firstList = data.optJSONArray("list") ?: return first
-        if (first.optInt("code") != 1 || !first.optBoolean("success") || firstList.length() < pageSize) return first
+        if (firstList.length() < pageSize) return first
         val all = JSONArray()
         appendProducts(all, firstList)
         var page = 2
         while (page <= 20) {
             val next = fetchMenuPage(page, pageSize)
+            if (!isBusinessSuccess(next)) {
+                throw IllegalStateException(next.optString("msg", "商品查询失败"))
+            }
             val nextList = next.optJSONObject("data")?.optJSONArray("list") ?: break
-            if (next.optInt("code") != 1 || !next.optBoolean("success") || nextList.length() == 0) break
+            if (nextList.length() == 0) break
             appendProducts(all, nextList)
             if (nextList.length() < pageSize) break
             page++
@@ -156,18 +155,37 @@ class RealMaxIotGaapPosGateway(
     }
 
     private fun fetchMenuPage(pageNum: Int, pageSize: Int): JSONObject {
-        val bizBody = JSONObject()
-        bizBody.put("storeId", storeId)
-        bizBody.put("menuSubType", "SELF_POS")
+        val bizBody = menuQueryBody()
+        bizBody.put("pageNum", pageNum)
+        bizBody.put("pageSize", pageSize)
+        return callMaxIotService("queryMenuProductList", serviceUri("queryMenuProductList"), bizBody)
+    }
+
+    private fun menuQueryBody(): JSONObject {
         val channel = JSONObject()
         channel.put("subPlatform", "POS")
         channel.put("serviceType", "TAKEOUT")
-        bizBody.put("menuChannel", channel)
-        bizBody.put("pageNum", pageNum)
-        bizBody.put("pageSize", pageSize)
-        val uri = "$baseUrl/v3/eco/model/$orgId/hanbu_restaurant_service/queryMenuProductList/sandbox"
-        return callMaxIotService("queryMenuProductList", uri, bizBody)
+        return JSONObject()
+            .put("storeId", storeId)
+            .put("menuSubType", "SELF_POS")
+            .put("menuChannel", channel)
     }
+
+    private fun serviceUri(serviceName: String): String =
+        "$baseUrl/v3/eco/model/$orgId/hanbu_restaurant_service/$serviceName/sandbox"
+
+    private fun rejected(code: String, message: String, response: JSONObject?): GaapSubmitResult =
+        GaapSubmitResult(
+            isSuccess = false,
+            gaapOrderId = "",
+            displayOrderNo = "",
+            pickupWindow = "",
+            estimatedWaitSeconds = 0,
+            status = "UNKNOWN",
+            errorCode = code,
+            errorMessage = message,
+            rawResponse = response?.toString(),
+        )
 
     private fun appendProducts(target: JSONArray, source: JSONArray) {
         for (index in 0 until source.length()) target.put(source.get(index))
@@ -181,8 +199,7 @@ class RealMaxIotGaapPosGateway(
         bizBody.put("storeId", storeId)
         bizBody.put("orderId", orderId)
 
-        val uri = "$baseUrl/v3/eco/model/$orgId/hanbu_restaurant_service/queryOrderInfo/sandbox"
-        return callMaxIotService("queryOrderInfo", uri, bizBody)
+        return callMaxIotService("queryOrderInfo", serviceUri("queryOrderInfo"), bizBody)
     }
 
     private fun callMaxIotService(serviceName: String, innerUri: String, bizBody: JSONObject): JSONObject {
@@ -257,6 +274,16 @@ class RealMaxIotGaapPosGateway(
     }
 
     companion object {
+        fun isBusinessSuccess(response: JSONObject): Boolean {
+            val code = response.opt("code")?.toString()
+            val success = if (response.has("success") && !response.isNull("success")) {
+                response.optBoolean("success")
+            } else {
+                true
+            }
+            return code == "1" && success
+        }
+
         fun orderBizBody(storeId: String, serviceMode: String, lines: List<com.sm.orderingagent.domain.OrderLine>): JSONObject {
             val orderDetails = JSONArray()
             for (line in lines) {

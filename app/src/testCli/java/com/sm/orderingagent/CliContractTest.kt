@@ -44,7 +44,8 @@ class CliContractTest {
         assertTrue(body.contains("重置和提交必填 orderId"))
         assertTrue(body.contains("仍适用的新执行结果可直接复用"))
         assertTrue(body.contains("current-cart-v2"))
-        assertTrue(body.contains("ordering-menu-snapshot:begin"))
+        assertTrue(body.contains("optionGroups[].id"))
+        assertFalse(body.contains("ordering-menu-snapshot:begin"))
         assertFalse(body.contains("不向 JSON 参数新增"))
     }
 

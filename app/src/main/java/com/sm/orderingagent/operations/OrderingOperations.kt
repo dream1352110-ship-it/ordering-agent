@@ -103,7 +103,7 @@ class OrderingOperations(
             }
             "get-menu-item" -> {
                 keys(args, setOf("itemId"))
-                base().put("item", productJson(session.product(text(args, "itemId"))))
+                base().put("item", productJson(menuDetail(session.product(text(args, "itemId")))))
             }
             "search-menu" -> searchMenu(args)
             "apply-cart-changes" -> {
@@ -157,17 +157,23 @@ class OrderingOperations(
             "submit-demo-order" -> {
                 keys(args, writeKeys + setOf("summaryId", "expectedCartVersion"))
                 val summaryId = text(args, "summaryId")
+                val liveStore = !session.usesLocalDemoMenu &&
+                    gaapPosGateway is com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway
+                val submitGateway = if (liveStore) {
+                    gaapPosGateway
+                } else {
+                    com.sm.orderingagent.gateway.MockGaapPosGateway()
+                }
                 var committedOrder: Order? = null
                 val result = write(id, args) {
                     checkout(summaryId)
                     val order = submit(summaryId, "扫码支付")
                     committedOrder = order
-                    val gaapResult = gaapPosGateway.submitOrder(order, summaryId, state.serviceMode)
+                    val gaapResult = submitGateway.submitOrder(order, summaryId, state.serviceMode)
                     if (!gaapResult.isSuccess) {
                         fail(gaapResult.errorCode ?: "POS_SUBMIT_FAILED", gaapResult.errorMessage ?: "门店创单失败")
                     }
-                    val storeOrder = storeOrderSnapshot(gaapResult.gaapOrderId)
-                    val liveStore = gaapPosGateway is com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway
+                    val storeOrder = if (liveStore) storeOrderSnapshot(gaapResult.gaapOrderId) else null
                     base(state.version, order.id).put("nextOrderId", state.currentOrderId)
                         .put("status", if (liveStore) gaapResult.status else "simulated").put("paymentProcessed", false)
                         .put("summaryId", summaryId).put("order", orderJson(order))
@@ -588,11 +594,28 @@ class OrderingOperations(
         val gateway = gaapPosGateway as? com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway ?: return null
         return try {
             val response = gateway.queryOrderInfo(orderId)
-            val code = response.optInt("code", -1)
-            if (code == 1 && response.optBoolean("success", false)) response.optJSONObject("data") else null
+            if (com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway.isBusinessSuccess(response)) {
+                response.optJSONObject("data")
+            } else {
+                null
+            }
         } catch (_: Exception) {
             null
         }
+    }
+
+    private fun menuDetail(item: com.sm.orderingagent.domain.MenuItem): com.sm.orderingagent.domain.MenuItem {
+        if (session.usesLocalDemoMenu || item.spuId.isBlank()) return item
+        val gateway = gaapPosGateway as? com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway ?: return item
+        val response = try {
+            gateway.queryMenuProductInfo(item.spuId)
+        } catch (failure: Exception) {
+            throw OrderingException(failure.message ?: "商品详情查询失败", "MENU_UNAVAILABLE")
+        }
+        if (!com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway.isBusinessSuccess(response)) {
+            fail("ITEM_NOT_FOUND", response.optString("msg", "商品详情不可用"))
+        }
+        return com.sm.orderingagent.gateway.MaxIotMenuConverter.convertDetail(response) ?: item
     }
 
     private fun ensureLiveMenu() {

@@ -10,6 +10,12 @@ import org.json.JSONObject
  */
 object MaxIotMenuConverter {
 
+    fun convertDetail(responseJson: JSONObject): MenuItem? {
+        val product = responseJson.optJSONObject("data") ?: return null
+        val wrapped = JSONObject().put("data", JSONObject().put("list", org.json.JSONArray().put(product)))
+        return convert(wrapped).firstOrNull()
+    }
+
     fun convert(responseJson: JSONObject): List<MenuItem> {
         val listJson = responseJson.optJSONObject("data")?.optJSONArray("list") ?: return emptyList()
         val items = mutableListOf<MenuItem>()

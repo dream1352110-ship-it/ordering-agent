@@ -4,6 +4,7 @@ import com.sm.orderingagent.domain.DemoMenu
 import com.sm.orderingagent.domain.MenuItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.security.MessageDigest
@@ -83,11 +84,12 @@ object MenuSkillSnapshot {
 
 class MenuSkillSnapshotTest {
     @Test
-    fun bothSkillsMatchRealMenu() {
-        val expected = MenuSkillSnapshot.render()
+    fun skillsUseTheLiveMenuInsteadOfTheDemoSnapshot() {
         MenuSkillSnapshot.skillFiles().forEach { file ->
             val actual = file.readText(Charsets.UTF_8).replace("\r\n", "\n")
-            assertEquals("Regenerate snapshot: ${file.path}", expected, MenuSkillSnapshot.embedded(actual))
+            assertFalse(actual.contains(MenuSkillSnapshot.BEGIN))
+            assertFalse(actual.contains("beef-burger"))
+            assertTrue(actual.contains("optionGroups[].id"))
             assertFalse("Public skill contains a forbidden vendor name", actual.contains("s" + "unmi", ignoreCase = true))
         }
     }

@@ -5,7 +5,7 @@
     {
       "id": "list-menu",
       "function": {
-        "description": "只读浏览门店在售菜单，返回商品ID、CNY整数分价格、库存和规格摘要。categoryId可选，必须使用本次返回的分类ID；选品与加购使用本次返回的itemId和defaultOptions。",
+        "description": "只读浏览门店在售菜单，返回商品ID、菜单币种最小单位价格、库存和规格摘要。categoryId可选，必须使用本次返回的分类ID；选品与加购使用本次返回的itemId和defaultOptions。",
         "parameters": {
           "type": "object",
           "properties": {
@@ -23,11 +23,11 @@
     {
       "id": "get-menu-item",
       "function": {
-        "description": "按门店itemId只读查询完整商品资料：配料、份量、CNY整数分价格、库存、规格及默认值、含有和可能接触的过敏原、资料完整性。itemId必须来自list-menu或search-menu。未列出的过敏原不代表安全。",
+        "description": "按门店itemId只读查询完整商品资料：配料、份量、菜单币种最小单位价格、库存、规格及默认值、含有和可能接触的过敏原、资料完整性。详情来自 queryMenuProductInfo。itemId必须来自list-menu或search-menu。未列出的过敏原不代表安全。",
         "parameters": {
           "type": "object",
           "properties": {
-            "itemId": { "type": "string", "description": "list-menu或search-menu返回的门店商品ID，不是商品名称，也不是内嵌演示快照ID。" }
+            "itemId": { "type": "string", "description": "本次list-menu或search-menu返回的门店商品ID，不是商品名称。" }
           },
           "required": ["itemId"]
         }
@@ -73,9 +73,8 @@
                   "delta": { "type": "integer", "description": "adjust必填，-99至99非零；结果0删除，其他结果1至99。" },
                   "options": {
                     "type": "object",
-                    "description": "add必填、update/adjust可选的完整规格替换，值为字符串，无规格{}。adjust结果0时不能提供。",
-                    "properties": { "size": { "type": "string" }, "temperature": { "type": "string" }, "sugar": { "type": "string" } },
-                    "required": []
+                    "description": "add必填、update/adjust可选的完整规格。键是该商品本次返回的optionGroups[].id，值是choices[].id。required为true的组必须全部提供；无规格组传{}。adjust结果0时不能提供。",
+                    "additionalProperties": { "type": "string" }
                   },
                   "serviceMode": { "type": "string", "enum": ["dine-in", "takeout"], "description": "dining字段，与partySize至少一个，省略保留。" },
                   "partySize": { "type": "integer", "description": "dining人数1至12。" },
@@ -145,13 +144,8 @@
             "quantity": { "type": "integer", "description": "本次增加数量，整数1至99；同商品同规格合并，库存按商品跨规格汇总校验。" },
             "options": {
               "type": "object",
-              "description": "商品支持的全部规格键及字符串选项ID，取自list-menu或search-menu；无规格传{}，应用不自动补默认值。",
-              "properties": {
-                "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
-                "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
-                "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
-              },
-              "required": []
+              "description": "完整规格。键是该商品本次list-menu或search-menu返回的optionGroups[].id，值是choices[].id。required为true的组必须全部提供；无规格组传{}。不使用未返回的键。",
+              "additionalProperties": { "type": "string" }
             },
             "requestId": { "type": "string", "description": "长度1至128；新意图生成新ID。重试必须复用原ID及全部原参数，跨进程重启仍返回原持久化收据。" },
             "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
@@ -173,13 +167,8 @@
             "quantity": { "type": "integer", "description": "可选绝对数量1至99；必须与options至少提供一个，删除使用remove-cart-item。" },
             "options": {
               "type": "object",
-              "description": "可选完整规格替换对象，值全为字符串；必须覆盖商品全部实际规格，无规格为{}。省略则保留原规格。",
-              "properties": {
-                "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
-                "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
-                "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
-              },
-              "required": []
+              "description": "可选完整规格替换。键是该商品optionGroups[].id，值是choices[].id。required为true的组必须全部提供；无规格组传{}。省略则保留原规格。",
+              "additionalProperties": { "type": "string" }
             },
             "requestId": { "type": "string", "description": "长度1至128；仅同函数同完整参数重试复用，新意图换新ID。" },
             "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
@@ -245,13 +234,8 @@
                   "quantity": { "type": "integer", "description": "整数1至99。" },
                   "options": {
                     "type": "object",
-                    "description": "商品全部实际规格，值全为字符串；无规格传{}，不自动补默认值。",
-                    "properties": {
-                      "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
-                      "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
-                      "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
-                    },
-                    "required": []
+                    "description": "完整规格。键是该商品optionGroups[].id，值是choices[].id。required为true的组必须全部提供；无规格组传{}。",
+                    "additionalProperties": { "type": "string" }
                   }
                 },
                 "required": ["itemId", "quantity", "options"]

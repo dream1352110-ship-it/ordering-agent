@@ -65,7 +65,7 @@ class OrderingSession private constructor(application: Application) {
 
     fun refreshMenuFromCloud() {
         if (usesLocalDemoMenu) return
-        Thread {
+        val worker = Thread {
             try {
                 ensureLiveMenu {
                     val gateway = com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway()
@@ -75,24 +75,29 @@ class OrderingSession private constructor(application: Application) {
             } catch (_: Exception) {
                 // 保持未就绪，下一次 Function / CLI 调用会重试
             }
-        }.start()
+        }
+        worker.isDaemon = true
+        worker.start()
     }
 
     fun ensureLiveMenu(fetch: () -> List<MenuItem>) {
         if (liveMenuReady) return
-        synchronized(menuLock) {
+        val items = synchronized(menuLock) {
             if (liveMenuReady) return
-            val items = MenuCatalog.acceptCloudMenu(fetch())
-            val task = FutureTask { applyLiveMenu(items) }
-            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
-                task.run()
-            } else {
-                if (!android.os.Handler(android.os.Looper.getMainLooper()).post(task)) {
-                    throw OrderingException("主线程不可用", "INTERNAL_ERROR")
-                }
-                task.get()
+            MenuCatalog.acceptCloudMenu(fetch())
+        }
+        val apply = FutureTask {
+            if (!liveMenuReady) {
+                applyLiveMenu(items)
+                liveMenuReady = true
             }
-            liveMenuReady = true
+        }
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            apply.run()
+        } else if (!android.os.Handler(android.os.Looper.getMainLooper()).post(apply)) {
+            throw OrderingException("主线程不可用", "INTERNAL_ERROR")
+        } else {
+            apply.get()
         }
     }
 
@@ -149,7 +154,14 @@ class OrderingSession private constructor(application: Application) {
 
     companion object {
         internal fun isInstrumentation(): Boolean =
-            System.getProperty("robolectric.logging.enabled") != null || System.getProperty("android.specs") != null
+            System.getProperty("robolectric.logging.enabled") != null ||
+                System.getProperty("android.specs") != null ||
+                try {
+                    Class.forName("org.robolectric.Robolectric", false, OrderingSession::class.java.classLoader)
+                    true
+                } catch (_: ClassNotFoundException) {
+                    false
+                }
 
         @Volatile private var instance: OrderingSession? = null
         fun get(application: Application): OrderingSession = instance ?: synchronized(this) {
