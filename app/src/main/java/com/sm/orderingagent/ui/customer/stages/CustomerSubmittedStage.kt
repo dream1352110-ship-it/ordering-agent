@@ -145,7 +145,7 @@ fun CustomerSubmittedStage(
                                 horizontalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
                                 Text(
-                                    text = "R " + String.format("%.2f", (line.unitPriceCents * line.quantity) / 100.0),
+                                    text = "¥ " + String.format("%.2f", (line.unitPriceCents * line.quantity) / 100.0),
                                     color = DemoInk,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.ExtraBold
@@ -179,7 +179,7 @@ fun CustomerSubmittedStage(
             ) {
                 Text(text = "Subtotal", color = DemoInkSoft, fontSize = 13.sp)
                 Text(
-                    text = "R " + String.format("%.2f", order.totalCents / 100.0),
+                    text = "¥ " + String.format("%.2f", order.totalCents / 100.0),
                     color = DemoInk,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
@@ -193,7 +193,7 @@ fun CustomerSubmittedStage(
             ) {
                 Text(text = "Total", color = DemoInk, fontSize = 26.sp, fontWeight = FontWeight.Black)
                 Text(
-                    text = "R " + String.format("%.2f", order.totalCents / 100.0),
+                    text = "¥ " + String.format("%.2f", order.totalCents / 100.0),
                     color = DemoInk,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black

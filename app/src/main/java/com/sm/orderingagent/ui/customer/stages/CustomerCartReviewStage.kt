@@ -303,7 +303,7 @@ fun CustomerCartReviewStage(
 
                                     // 金额
                                     Text(
-                                        text = "R " + String.format("%.2f", lineSubtotalCents / 100.0),
+                                        text = "¥ " + String.format("%.2f", lineSubtotalCents / 100.0),
                                         color = DemoInk,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.ExtraBold
@@ -331,7 +331,7 @@ fun CustomerCartReviewStage(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(text = "Subtotal", color = DemoInkSoft, fontSize = 13.sp)
-                Text(text = "R " + String.format("%.2f", totalCents / 100.0), color = DemoInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(text = "¥ " + String.format("%.2f", totalCents / 100.0), color = DemoInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
 
             Row(
@@ -341,7 +341,7 @@ fun CustomerCartReviewStage(
             ) {
                 Text(text = "Total", color = DemoInk, fontSize = 26.sp, fontWeight = FontWeight.Black)
                 Text(
-                    text = "R " + String.format("%.2f", totalCents / 100.0),
+                    text = "¥ " + String.format("%.2f", totalCents / 100.0),
                     color = DemoInk,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black

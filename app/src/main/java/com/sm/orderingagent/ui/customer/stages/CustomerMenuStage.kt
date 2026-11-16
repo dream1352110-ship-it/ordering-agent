@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -25,21 +26,6 @@ import com.sm.orderingagent.ui.customer.components.BurgerArt
 import com.sm.orderingagent.ui.customer.components.WrapArt
 import com.sm.orderingagent.ui.theme.*
 
-data class DemoFeaturedCombo(
-    val key: String,
-    val title: String,
-    val contents: String,
-    val priceText: String,
-    val isBurger: Boolean
-)
-
-data class DemoMenuItemRow(
-    val key: String,
-    val name: String,
-    val priceText: String,
-    val sizeLine: String? = null
-)
-
 @Composable
 fun CustomerMenuStage(
     menuItems: List<MenuItem>,
@@ -54,46 +40,35 @@ fun CustomerMenuStage(
     onOpenCartReview: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // 数量映射 (通过 itemId 或名称匹配)
-    val quantities = remember(state.cart, menuItems) {
+    // 购物车商品数量映射
+    val quantities = remember(state.cart) {
         state.cart.groupBy { it.itemId }.mapValues { (_, lines) -> lines.sumOf { it.quantity } }
     }
 
-    // 最新加购反馈条 (Section 6.2 详细需求)
+    // 最新加入购物车的商品（用于浮动提示条反馈）
     val latestLine = state.cart.lastOrNull()
     val latestProduct = remember(latestLine, menuItems) {
         latestLine?.let { line -> menuItems.firstOrNull { it.id == line.itemId } }
     }
 
-    // 精选三套餐数据 (与 HTML 及图片 1:1 完全一致)
-    val featuredCombos = listOf(
-        DemoFeaturedCombo("chickenCombo", "鸡肉三明治套餐", "三明治+薯条+饮料", "R 99.00", isBurger = true),
-        DemoFeaturedCombo("beefCombo", "牛肉汉堡套餐", "牛肉汉堡+薯条+饮料", "R 109.00", isBurger = true),
-        DemoFeaturedCombo("wrapCombo", "鸡肉卷套餐", "卷饼+薯条+饮料", "R 95.00", isBurger = false)
-    )
+    // 动态提取本地 Mock 菜单中的前 3 个招牌主食作为顶部 Featured Combos
+    val featuredItems = remember(menuItems) {
+        val preferred = listOf("beef-burger", "steak", "meatballs")
+        preferred.mapNotNull { id -> menuItems.firstOrNull { it.id == id } }
+            .ifEmpty { menuItems.filter { it.category == "主食" }.take(3) }
+            .ifEmpty { menuItems.take(3) }
+    }
 
-    // 左栏：三明治和卷饼 (与 HTML 及图片 1:1 完全一致)
-    val sandwichesAndWraps = listOf(
-        DemoMenuItemRow("classicChicken", "经典鸡肉三明治", "R 58.00"),
-        DemoMenuItemRow("spicyChicken", "香辣鸡肉三明治", "R 62.00"),
-        DemoMenuItemRow("crispyChicken", "香脆鸡肉三明治", "R 64.00"),
-        DemoMenuItemRow("zingerBurger", "香辣鸡腿堡", "R 66.00"),
-        DemoMenuItemRow("chickenWrap", "鸡肉卷", "R 49.00")
-    )
+    // 左栏：本地 Mock 的真实“主食与轻食”
+    val leftColumnItems = remember(menuItems) {
+        menuItems.filter { it.category in listOf("主食", "轻食", "烘焙") }
+            .take(6)
+    }
 
-    // 右栏：配菜和饮料 (与 HTML 及图片 1:1 完全一致)
-    val sidesAndDrinks = listOf(
-        DemoMenuItemRow("fries", "薯条", "小号/中号/大号", "小号 R 32.00 · 中号 R 42.00 · 大号 R 52.00"),
-        DemoMenuItemRow("nuggets", "鸡块", "R 45.00"),
-        DemoMenuItemRow("applePie", "苹果派", "R 30.00"),
-        DemoMenuItemRow("coke", "可口可乐", "小号/中号/大号", "小号 R 24.00 · 中号 R 28.00 · 大号 R 34.00"),
-        DemoMenuItemRow("sprite", "雪碧", "小号/中号/大号", "小号 R 24.00 · 中号 R 28.00 · 大号 R 34.00")
-    )
-
-    // 辅助匹配真实 MenuItem
-    fun resolveProduct(rowName: String): MenuItem? {
-        return menuItems.firstOrNull { it.name == rowName || it.name.contains(rowName.take(2)) }
-            ?: menuItems.firstOrNull()
+    // 右栏：本地 Mock 的真实“小食与饮品”
+    val rightColumnItems = remember(menuItems) {
+        menuItems.filter { it.category in listOf("小食", "咖啡", "茶饮", "冷饮") }
+            .take(6)
     }
 
     Box(
@@ -101,7 +76,7 @@ fun CustomerMenuStage(
             .fillMaxSize()
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        // 主体：1:1 HTML 经典深红酒色菜单看板 (.menu-board)
+        // 主体：1:1 HTML 经典深酒红菜单看板 (.menu-board)
         Surface(
             color = DemoMenuBoardBg,
             shape = RoundedCornerShape(13.dp),
@@ -130,7 +105,7 @@ fun CustomerMenuStage(
                         letterSpacing = 1.sp
                     )
 
-                    // 如果有已点商品，在右上角提供一键查看购物车
+                    // 右上角购物车小部件
                     if (state.cart.isNotEmpty()) {
                         Surface(
                             color = DemoMenuBoardGold,
@@ -140,7 +115,7 @@ fun CustomerMenuStage(
                                 .clickable(onClick = onOpenCartReview)
                         ) {
                             Text(
-                                text = "🛒 已点 ${state.cart.sumOf { it.quantity }} 项 · R " + String.format("%.2f", totalCents / 100.0),
+                                text = "🛒 已点 ${state.cart.sumOf { it.quantity }} 项 · ¥ " + String.format("%.2f", totalCents / 100.0),
                                 color = DemoMenuBoardDarkRed,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.ExtraBold,
@@ -150,26 +125,27 @@ fun CustomerMenuStage(
                     }
                 }
 
-                // 2. 三个大号精选套餐卡片 (1, 2, 3)
+                // 2. 三个大号精选套餐/招牌主食卡片 (1, 2, 3) - 绑定真实本地 Mock 数据
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    featuredCombos.forEachIndexed { index, combo ->
-                        val targetItem = resolveProduct(combo.title)
-                        val qty = targetItem?.let { quantities[it.id] } ?: 0
+                    featuredItems.forEachIndexed { index, item ->
+                        val qty = quantities[item.id] ?: 0
                         val isAdded = qty > 0
+                        val risks = risksProvider(item)
 
                         Surface(
                             color = DemoMenuBoardCardBg,
                             shape = RoundedCornerShape(9.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, DemoMenuBoardCardBorder),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                if (risks.isNotEmpty()) Color(0xFFEF5350) else DemoMenuBoardCardBorder
+                            ),
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(9.dp))
-                                .clickable {
-                                    targetItem?.let { onItemClick(it) }
-                                }
+                                .clickable { onItemClick(item) }
                         ) {
                             Box(
                                 modifier = Modifier
@@ -193,8 +169,23 @@ fun CustomerMenuStage(
                                     )
                                 }
 
-                                // 右上角已点数量徽章
-                                if (isAdded) {
+                                // 右上角已点数量徽章或过敏原警示
+                                if (risks.isNotEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(999.dp))
+                                            .background(Color(0xFFD32F2F))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            .align(Alignment.TopEnd)
+                                    ) {
+                                        Text(
+                                            text = "⚠️ 冲突",
+                                            color = Color.White,
+                                            fontSize = 9.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                } else if (isAdded) {
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(999.dp))
@@ -218,22 +209,22 @@ fun CustomerMenuStage(
                                         .padding(top = 10.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    // 居中精美食物矢量插图
+                                    // 矢量食物插画
                                     Box(
                                         modifier = Modifier.height(44.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        if (combo.isBurger) {
-                                            BurgerArt()
-                                        } else {
+                                        if (index == 2) {
                                             WrapArt()
+                                        } else {
+                                            BurgerArt()
                                         }
                                     }
 
                                     Spacer(modifier = Modifier.height(6.dp))
 
                                     Text(
-                                        text = combo.title,
+                                        text = item.name,
                                         color = DemoMenuBoardText,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
@@ -244,7 +235,7 @@ fun CustomerMenuStage(
                                     Spacer(modifier = Modifier.height(2.dp))
 
                                     Text(
-                                        text = combo.contents,
+                                        text = item.portion.ifBlank { item.description.take(14) },
                                         color = DemoMenuBoardText.copy(alpha = 0.75f),
                                         fontSize = 10.sp,
                                         maxLines = 1,
@@ -254,7 +245,7 @@ fun CustomerMenuStage(
                                     Spacer(modifier = Modifier.height(4.dp))
 
                                     Text(
-                                        text = combo.priceText,
+                                        text = "¥ " + String.format("%.2f", item.priceCents / 100.0),
                                         color = DemoMenuBoardGold,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Black
@@ -286,13 +277,13 @@ fun CustomerMenuStage(
                             fontWeight = FontWeight.Black
                         )
                         Text(
-                            text = "中份薯条 +10 · 大份薯条 +20",
+                            text = "加配金黄薯条 +¥16.00 · 奥尔良风味鸡翅 +¥22.00",
                             color = DemoMenuBoardText,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "饮用 M +4 · L +8",
+                            text = "咖啡升级大杯 +¥4.00",
                             color = DemoMenuBoardText,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -300,7 +291,7 @@ fun CustomerMenuStage(
                     }
                 }
 
-                // 4. 双栏菜单区 (左栏：三明治和卷饼；右栏：配菜和饮料)
+                // 4. 双栏菜单区 (绑定真实本地 Mock 菜品)
                 Row(
                     modifier = Modifier
                         .weight(1f)
@@ -308,81 +299,77 @@ fun CustomerMenuStage(
                         .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // 左栏：三明治和卷饼
+                    // 左栏：主食与轻食 (真实本地 Mock 菜品)
                     Column(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "三明治和卷饼",
+                            text = "精选主食与沙拉",
                             color = DemoMenuBoardGold,
-                            fontSize = 13.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.padding(bottom = 3.dp)
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
                         HorizontalDivider(thickness = 1.dp, color = DemoMenuBoardLine)
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(sandwichesAndWraps.size) { i ->
-                                val row = sandwichesAndWraps[i]
-                                val item = resolveProduct(row.name)
-                                val qty = item?.let { quantities[it.id] } ?: 0
-                                MenuBoardRow(
-                                    name = row.name,
-                                    priceText = row.priceText,
-                                    sizeLine = row.sizeLine,
+                            items(leftColumnItems, key = { it.id }) { item ->
+                                val qty = quantities[item.id] ?: 0
+                                val risks = risksProvider(item)
+                                RealMenuBoardRow(
+                                    item = item,
                                     quantity = qty,
-                                    onClick = { item?.let { onItemClick(it) } }
+                                    risks = risks,
+                                    onClick = { onItemClick(item) }
                                 )
                             }
                         }
                     }
 
-                    // 右栏：配菜和饮料
+                    // 右栏：配菜和饮料 (真实本地 Mock 菜品)
                     Column(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
                             text = "配菜和饮料",
                             color = DemoMenuBoardGold,
-                            fontSize = 13.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.padding(bottom = 3.dp)
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
                         HorizontalDivider(thickness = 1.dp, color = DemoMenuBoardLine)
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
                         LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(sidesAndDrinks.size) { i ->
-                                val row = sidesAndDrinks[i]
-                                val item = resolveProduct(row.name)
-                                val qty = item?.let { quantities[it.id] } ?: 0
-                                MenuBoardRow(
-                                    name = row.name,
-                                    priceText = row.priceText,
-                                    sizeLine = row.sizeLine,
+                            items(rightColumnItems, key = { it.id }) { item ->
+                                val qty = quantities[item.id] ?: 0
+                                val risks = risksProvider(item)
+                                RealMenuBoardRow(
+                                    item = item,
                                     quantity = qty,
-                                    onClick = { item?.let { onItemClick(it) } }
+                                    risks = risks,
+                                    onClick = { onItemClick(item) }
                                 )
                             }
                         }
                     }
                 }
 
-                // 5. 底部黄色提示横幅 (COMBOS INCLUDE SMALL FRIES + SMALL DRINK)
+                // 5. 底部黄色提示横幅
                 Surface(
                     color = DemoMenuBoardGold,
                     shape = RoundedCornerShape(5.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "套餐包含小份薯条和小杯饮料",
+                        text = "套餐包含小份薯条和小杯饮料 · 智能语音点餐进行中",
                         color = DemoMenuBoardDarkRed,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Black,
@@ -395,7 +382,7 @@ fun CustomerMenuStage(
             }
         }
 
-        // 6. Section 6.2 浮动提示：商品加入反馈条 (ADDED TO ORDER)
+        // 6. 浮动提示：商品加入反馈条 (ADDED TO ORDER)
         AnimatedVisibility(
             visible = latestProduct != null && !hasVoiceError,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -426,7 +413,7 @@ fun CustomerMenuStage(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "✓ ADDED TO ORDER",
+                                text = "✓ 已加入购物车",
                                 color = Color(0xFF2E7D32),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Black
@@ -457,7 +444,7 @@ fun CustomerMenuStage(
             }
         }
 
-        // 7. Section 6.4 浮动提示：语音识别失败就地提示 (We didn't catch that)
+        // 7. 浮动提示：语音识别失败就地提示 (没听清楚)
         AnimatedVisibility(
             visible = hasVoiceError,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -496,13 +483,13 @@ fun CustomerMenuStage(
                     }
                     Column {
                         Text(
-                            text = "We didn't catch that",
+                            text = "没听清楚",
                             color = Color(0xFFB71C1C),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Please say your order again, or say “help”.",
+                            text = "请再说一遍，或说“帮帮我”。",
                             color = DemoInkSoft,
                             fontSize = 11.sp
                         )
@@ -514,76 +501,120 @@ fun CustomerMenuStage(
 }
 
 @Composable
-private fun MenuBoardRow(
-    name: String,
-    priceText: String,
-    sizeLine: String? = null,
+private fun RealMenuBoardRow(
+    item: MenuItem,
     quantity: Int = 0,
+    risks: List<String> = emptyList(),
     onClick: () -> Unit
 ) {
     val isAdded = quantity > 0
+    val sizeGroup = item.options.firstOrNull { it.id == "size" }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(4.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(vertical = 3.dp)
     ) {
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.weight(1f)
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 金色圆点或绿色对勾
-            if (isAdded) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                // 金色圆点或绿色对勾或过敏原警示
+                if (risks.isNotEmpty()) {
+                    Text(
+                        text = "⚠️",
+                        color = Color(0xFFEF5350),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                } else if (isAdded) {
+                    Text(
+                        text = "✓",
+                        color = Color(0xFF4CAF50),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(5.dp)
+                            .clip(CircleShape)
+                            .background(DemoMenuBoardGoldSoft)
+                    )
+                }
+
                 Text(
-                    text = "✓",
-                    color = Color(0xFF4CAF50),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black
+                    text = item.name,
+                    color = DemoMenuBoardText,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(4.dp)
-                        .clip(CircleShape)
-                        .background(DemoMenuBoardGoldSoft)
-                )
+
+                if (risks.isNotEmpty()) {
+                    Text(
+                        text = "⚠️ " + risks.first(),
+                        color = Color(0xFFEF5350),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                } else if (isAdded) {
+                    Text(
+                        text = "已选 $quantity",
+                        color = Color(0xFF81C784),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1
+                    )
+                }
             }
 
-            Column {
+            if (sizeGroup != null) {
                 Text(
-                    text = name,
-                    color = DemoMenuBoardText,
+                    text = sizeGroup.choices.joinToString("/") { it.label },
+                    color = DemoMenuBoardGold,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
                 )
-                if (sizeLine != null) {
-                    Text(
-                        text = sizeLine,
-                        color = DemoMenuBoardText.copy(alpha = 0.65f),
-                        fontSize = 9.sp
-                    )
-                }
-                if (isAdded) {
-                    Text(
-                        text = "$quantity in order",
-                        color = Color(0xFF81C784),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            } else {
+                Text(
+                    text = "¥ " + String.format("%.2f", item.priceCents / 100.0),
+                    color = DemoMenuBoardGold,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
             }
         }
 
-        Text(
-            text = priceText,
-            color = if (sizeLine != null) DemoMenuBoardGold else DemoMenuBoardText,
-            fontSize = if (sizeLine != null) 11.sp else 13.sp,
-            fontWeight = FontWeight.ExtraBold
-        )
+        // 下方规格与单价细节（对齐 HTML 菜单板格式）
+        if (sizeGroup != null) {
+            val sizePricing = sizeGroup.choices.joinToString(" · ") { choice ->
+                val price = (item.priceCents + choice.extraCents) / 100.0
+                "${choice.label} ¥ " + String.format("%.2f", price)
+            }
+            Text(
+                text = sizePricing,
+                color = DemoMenuBoardText.copy(alpha = 0.70f),
+                fontSize = 11.sp,
+                modifier = Modifier.padding(start = 11.dp, top = 2.dp)
+            )
+        } else if (item.portion.isNotBlank()) {
+            Text(
+                text = item.portion,
+                color = DemoMenuBoardText.copy(alpha = 0.65f),
+                fontSize = 10.sp,
+                modifier = Modifier.padding(start = 11.dp, top = 2.dp)
+            )
+        }
     }
 }

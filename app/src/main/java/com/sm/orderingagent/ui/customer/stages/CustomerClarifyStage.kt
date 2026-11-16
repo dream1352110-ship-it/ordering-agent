@@ -153,7 +153,7 @@ fun CustomerClarifyStage(
                             }
 
                             Text(
-                                text = "R " + String.format("%.2f", item.priceCents / 100.0),
+                                text = "¥ " + String.format("%.2f", item.priceCents / 100.0),
                                 color = DemoInk,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.ExtraBold
