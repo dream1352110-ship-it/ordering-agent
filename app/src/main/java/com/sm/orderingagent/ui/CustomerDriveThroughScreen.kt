@@ -36,18 +36,21 @@ fun CustomerDriveThroughScreen(
         var currentStage by remember { mutableStateOf<CustomerStage>(CustomerStage.Menu) }
         var editingProduct by remember { mutableStateOf<MenuItem?>(null) }
         var showAllergyDialog by remember { mutableStateOf(false) }
+        var activeQuote by remember { mutableStateOf<com.sm.orderingagent.domain.CheckoutQuote?>(null) }
         var aiListeningText by remember { mutableStateOf("Ready to order") }
 
         // 监听云端/跨进程新一单重置
         LaunchedEffect(vm.orderGeneration) {
             currentStage = CustomerStage.Menu
             editingProduct = null
+            activeQuote = null
         }
 
         // 监听来自 OSAgent 语音大模型能力调用的核对单生成 (open-checkout)
         LaunchedEffect(vm.pendingCheckout) {
             vm.pendingCheckout?.let { quote ->
                 if (quote.version == state.version) {
+                    activeQuote = quote
                     currentStage = CustomerStage.CartReview
                 }
                 vm.acknowledgeCheckout()
@@ -57,8 +60,26 @@ fun CustomerDriveThroughScreen(
         // 监听来自 OSAgent 语音大模型能力调用的订单生成 (submit-demo-order)
         LaunchedEffect(vm.latestRemoteOrder) {
             vm.latestRemoteOrder?.let { order ->
+                activeQuote = null
+                editingProduct = null
                 currentStage = CustomerStage.Submitted(order)
                 vm.acknowledgeOrder()
+            }
+        }
+
+        // 5分钟核对单生命周期与购物车版本失效倒计时（完全承袭 fcdad020 领域逻辑）
+        LaunchedEffect(activeQuote?.id, state.version) {
+            val current = activeQuote ?: return@LaunchedEffect
+            val remaining = current.createdAt + 300_000L - System.currentTimeMillis()
+            if (current.version == state.version && remaining > 0) {
+                kotlinx.coroutines.delay(remaining)
+            }
+            if (activeQuote?.id == current.id && currentStage is CustomerStage.CartReview) {
+                activeQuote = null
+                currentStage = CustomerStage.Menu
+                scope.launch {
+                    snackbarHostState.showSnackbar("订单已变更或核对单已过期，请重新核对")
+                }
             }
         }
 
@@ -131,7 +152,11 @@ fun CustomerDriveThroughScreen(
                                     }
                                 },
                                 onOpenCartReview = {
-                                    currentStage = CustomerStage.CartReview
+                                    executeCommand("核对订单失败") {
+                                        val quote = vm.quote()
+                                        activeQuote = quote
+                                        currentStage = CustomerStage.CartReview
+                                    }
                                 }
                             )
                         }
@@ -144,6 +169,7 @@ fun CustomerDriveThroughScreen(
                                 allergens = state.allergens,
                                 blockers = vm.blockers(),
                                 onBackToMenu = {
+                                    activeQuote = null
                                     currentStage = CustomerStage.Menu
                                 },
                                 onIncreaseItem = { line ->
@@ -161,10 +187,11 @@ fun CustomerDriveThroughScreen(
                                         vm.remove(line.id)
                                     }
                                 },
-                                onSubmitOrder = {
+                                onSubmitOrder = { paymentMethod ->
                                     executeCommand("提交订单失败") {
-                                        val quote = vm.quote()
-                                        val order = vm.submit(quote.id, "扫码支付")
+                                        val quote = activeQuote ?: vm.quote()
+                                        val order = vm.submit(quote.id, paymentMethod)
+                                        activeQuote = null
                                         currentStage = CustomerStage.Submitted(order)
                                     }
                                 }
@@ -194,6 +221,7 @@ fun CustomerDriveThroughScreen(
                                 onStartNewOrder = {
                                     executeCommand("新建订单失败") {
                                         vm.startNewOrder()
+                                        activeQuote = null
                                         currentStage = CustomerStage.Menu
                                     }
                                 }

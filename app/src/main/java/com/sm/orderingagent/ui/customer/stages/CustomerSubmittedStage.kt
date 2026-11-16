@@ -77,7 +77,7 @@ fun CustomerSubmittedStage(
                 border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBE5CB)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 14.dp)
+                    .padding(bottom = 10.dp)
             ) {
                 Row(
                     modifier = Modifier
@@ -100,6 +100,27 @@ fun CustomerSubmittedStage(
                         letterSpacing = 1.sp
                     )
                 }
+            }
+
+            // 提示与模拟信息 (对齐 fcdad020 ReceiptDialog 标准)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "模拟订单 · 未产生真实扣款",
+                    color = Color(0xFFB33832),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${order.serviceMode} · ${order.partySize} 人 · ${order.paymentMethod}（模拟）",
+                    color = DemoInkSoft,
+                    fontSize = 12.sp
+                )
             }
 
             // 3. 订单内容卡片

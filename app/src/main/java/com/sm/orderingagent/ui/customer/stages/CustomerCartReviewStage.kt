@@ -2,6 +2,7 @@ package com.sm.orderingagent.ui.customer.stages
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,7 +14,8 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,9 +42,12 @@ fun CustomerCartReviewStage(
     onIncreaseItem: (CartItem) -> Unit,
     onDecreaseItem: (CartItem) -> Unit,
     onRemoveItem: (CartItem) -> Unit,
-    onSubmitOrder: () -> Unit,
+    onSubmitOrder: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var selectedPayment by rememberSaveable { mutableStateOf("扫码支付") }
+    var submitting by remember { mutableStateOf(false) }
+
     val totalCount = state.cart.sumOf { it.quantity }
 
     val pageTitle = when {
@@ -316,14 +321,67 @@ fun CustomerCartReviewStage(
             }
         }
 
-        // 5. 底部金额汇总与 Section 6.2 语音指令提示框 (review-order-footer)
+        // 5. 底部金额汇总、模拟支付选择与 Section 6.2 语音指令提示框 (review-order-footer)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(top = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             HorizontalDivider(color = DemoLine)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "模拟下单，不会发起真实支付或扣款。",
+                    color = Color(0xFFB33832),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "${state.serviceMode} · ${state.partySize} 人 · 过敏原要求：${if (allergens.isEmpty()) "未列出" else allergens.joinToString("、") { it.label }}",
+                    color = DemoInkSoft,
+                    fontSize = 12.sp
+                )
+            }
+
+            // 模拟付款方式（完全承袭 fcdad020 领域规则与操作）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "模拟付款方式：",
+                    color = DemoInk,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                listOf("扫码支付", "现金").forEach { method ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { selectedPayment = method }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        RadioButton(
+                            selected = (selectedPayment == method),
+                            onClick = { selectedPayment = method },
+                            colors = RadioButtonDefaults.colors(selectedColor = DemoAccent)
+                        )
+                        Text(
+                            text = "$method（模拟）",
+                            color = DemoInk,
+                            fontSize = 13.sp,
+                            fontWeight = if (selectedPayment == method) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -358,7 +416,7 @@ fun CustomerCartReviewStage(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -377,7 +435,7 @@ fun CustomerCartReviewStage(
                 }
             }
 
-            // 触屏确认提交与加餐大按钮
+            // 触屏确认提交与加餐大按钮（具备提交防重与正在提交状态）
             if (!isConfirmed && state.cart.isNotEmpty()) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -395,8 +453,13 @@ fun CustomerCartReviewStage(
                     }
 
                     Button(
-                        onClick = onSubmitOrder,
-                        enabled = blockers.isEmpty(),
+                        onClick = {
+                            if (!submitting) {
+                                submitting = true
+                                onSubmitOrder(selectedPayment)
+                            }
+                        },
+                        enabled = blockers.isEmpty() && !submitting,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .weight(1.6f)
@@ -407,7 +470,11 @@ fun CustomerCartReviewStage(
                         )
                     ) {
                         Text(
-                            text = if (blockers.isNotEmpty()) "存在过敏风险无法提交" else "确认下单",
+                            text = when {
+                                submitting -> "正在提交..."
+                                blockers.isNotEmpty() -> "存在过敏风险无法提交"
+                                else -> "确认模拟下单 · ¥ " + String.format("%.2f", totalCents / 100.0)
+                            },
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
