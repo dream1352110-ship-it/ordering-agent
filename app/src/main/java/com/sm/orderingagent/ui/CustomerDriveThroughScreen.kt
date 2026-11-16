@@ -164,7 +164,7 @@ fun CustomerDriveThroughScreen(
                                 onSubmitOrder = {
                                     executeCommand("提交订单失败") {
                                         val quote = vm.quote()
-                                        val order = vm.submit(quote.id, "counter")
+                                        val order = vm.submit(quote.id, "扫码支付")
                                         currentStage = CustomerStage.Submitted(order)
                                     }
                                 }
