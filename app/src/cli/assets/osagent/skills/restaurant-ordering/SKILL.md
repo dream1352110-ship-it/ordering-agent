@@ -123,6 +123,10 @@ requestId 为非空白1至128字符，新意图用新ID。超时或结果不确�
 
 ## 核对与提交
 
+当用户表达以下意图时，必须立即调用 `open-checkout` 打开/跳转到订单核对页面（Review order）：
+1. **完成点餐与要求确认**：“我点完了”、“我要确认订单”、“结账”、“买单”、“核对订单”、“就这些了”等；
+2. **查看与修改订单明细**：“我想修改订单”、“查看订单”、“修改订单”、“看看我点了什么”等。
+
 ```sh
 sm-oscap-cli ordering open-checkout --json '{"expectedCartVersion":17}'
 sm-oscap-cli ordering submit-demo-order --json '{"orderId":"actual-order-id","summaryId":"actual-summary-id","requestId":"submit-unique-1","expectedCartVersion":17}'
@@ -135,3 +139,11 @@ sm-oscap-cli ordering submit-demo-order --json '{"orderId":"actual-order-id","su
 执行复核身份、版本、期限、库存及过敏要求。仅成功 status=simulated、paymentProcessed=false 才报告完成单号和金额，无真实扣款或厨房通知。顶层 orderId/order.orderId 属于完成单，nextOrderId/cartVersion 是当时新车快照；后续普通修改省略 orderId，不携带完成单ID。原请求重放不重复下单，新 requestId 不能复用已完成核对单绕过确认。
 
 身份或版本冲突时查询当前车、理解变化再决策，不仅替换ID/版本重发。商品、条目、规格、库存或过敏失败时按原因查询、修正或咨询工作人员，不盲重试；核对凭证缺失或过期则重新核对。失败或不确定不报告成功，保存或内部错误不泄露诊断，结果不确定只用原 requestId 和原参数重试。
+
+## 呼叫人工与寻求帮助
+
+```sh
+sm-oscap-cli ordering request-staff-assistance --json '{"reason":"Customer requested a team member"}'
+```
+
+当用户表达“寻求帮助”、“人工客服”、“呼叫服务员”、“找店员”、“找人工”、“人工服务”等需要人工介入的意图时，必须立即调用 `request-staff-assistance`（可选参数 `reason` 如 `{"reason":"Customer requested a team member"}` 或 `{}`）。系统将立即跳转至人工客服接管界面（A team member is joining），并在车道屏顶部点亮 Help requested 警示状态。

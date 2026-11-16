@@ -32,6 +32,7 @@ class OrderingFunctions(
             CapabilityFunction { raw -> execute("submit-demo-order", raw) },
             ConfirmationMessage { raw -> operations.prepareConfirmation(raw) },
         ),
+        "request-staff-assistance" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("request-staff-assistance", raw) }),
     )
 
     private fun execute(id: String, raw: String): CapabilityResult {

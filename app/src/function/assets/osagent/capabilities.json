@@ -268,7 +268,7 @@
     {
       "id": "open-checkout",
       "function": {
-        "description": "以必填expectedCartVersion创建绑定当前版本、5分钟有效的核对单，返回summaryId、精确明细、要求、金额及到期时间，请用户核对。顶层、summary和cart的orderId一致。购物车变更或凭证失效须重新核对；仅请求显示界面，不提交、不付款、不锁库存。",
+        "description": "以必填expectedCartVersion创建绑定当前版本、5分钟有效的核对单，返回summaryId、精确明细、要求、金额及到期时间，请用户核对。当用户表达“我点完了”、“我要确认订单”、“结账”、“买单”、“核对订单”、“就这些了”，或“我想修改订单”、“查看订单”、“修改订单”、“看看我点了什么”等意图时，必须立即调用此函数跳转到核对确认页面（Review order）。顶层、summary和cart的orderId一致。购物车变更或凭证失效须重新核对；仅请求显示界面，不提交、不付款、不锁库存。",
         "parameters": {
           "type": "object",
           "properties": {
@@ -297,6 +297,20 @@
       },
       "execution": { "timeoutMs": 15000 },
       "confirmation": { "mode": "confirm" }
+    },
+    {
+      "id": "request-staff-assistance",
+      "function": {
+        "description": "当用户表达“寻求帮助”、“人工客服”、“呼叫服务员”、“找店员”、“人工服务”、“需要帮助”等需要人工介入的意图时，必须立即调用此函数跳转到人工客服接管页面（A team member is joining）。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "reason": { "type": "string", "description": "请求人工帮助的原因或说明，可省略。" }
+          }
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
     }
   ],
   "skills": [
@@ -319,7 +333,8 @@
         "set-allergy-requirements",
         "calculate-price",
         "open-checkout",
-        "submit-demo-order"
+        "submit-demo-order",
+        "request-staff-assistance"
       ]
     }
   ]

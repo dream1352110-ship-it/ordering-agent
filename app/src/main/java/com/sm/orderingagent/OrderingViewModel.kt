@@ -17,9 +17,11 @@ class OrderingViewModel(application: Application) : AndroidViewModel(application
     val menu get() = session.menu
     val pendingCheckout get() = session.pendingCheckout
     val latestRemoteOrder get() = session.latestRemoteOrder
+    val pendingHandoffReason get() = session.pendingHandoffReason
     val orderGeneration get() = session.orderGeneration
     fun acknowledgeCheckout() = session.acknowledgeCheckout()
     fun acknowledgeOrder() = session.acknowledgeOrder()
+    fun acknowledgeStaffAssistance() = session.acknowledgeStaffAssistance()
     fun product(id: String) = session.product(id)
     fun totalCents() = session.totalCents()
     fun risks(product: MenuItem) = session.risks(product)
@@ -46,17 +48,22 @@ class OrderingSession private constructor(application: Application) {
         private set
     var latestRemoteOrder by mutableStateOf<Order?>(null)
         private set
+    var pendingHandoffReason by mutableStateOf<String?>(null)
+        private set
     var orderGeneration by mutableStateOf(0L)
         private set
     fun clearTransientForNewOrder() {
         pendingCheckout = null
         latestRemoteOrder = null
+        pendingHandoffReason = null
         orderGeneration += 1
     }
     fun requestCheckout(quote: CheckoutQuote) { pendingCheckout = quote }
     fun acknowledgeCheckout() { pendingCheckout = null }
     fun showRemoteOrder(order: Order) { pendingCheckout = null; latestRemoteOrder = order }
     fun acknowledgeOrder() { latestRemoteOrder = null }
+    fun requestStaffAssistance(reason: String) { pendingHandoffReason = reason }
+    fun acknowledgeStaffAssistance() { pendingHandoffReason = null }
     fun <Result> inspect(action: OrderingEngine.() -> Result): Result {
         check(android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
         return engine.action()

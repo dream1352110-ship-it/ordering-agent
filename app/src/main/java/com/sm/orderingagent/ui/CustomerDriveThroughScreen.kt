@@ -67,6 +67,16 @@ fun CustomerDriveThroughScreen(
             }
         }
 
+        // 监听来自 OSAgent 语音大模型呼叫人工客服 (request-staff-assistance)
+        LaunchedEffect(vm.pendingHandoffReason) {
+            vm.pendingHandoffReason?.let { reason ->
+                activeQuote = null
+                editingProduct = null
+                currentStage = CustomerStage.Handoff(reason)
+                vm.acknowledgeStaffAssistance()
+            }
+        }
+
         // 5分钟核对单生命周期与购物车版本失效倒计时（完全承袭 fcdad020 领域逻辑）
         LaunchedEffect(activeQuote?.id, state.version) {
             val current = activeQuote ?: return@LaunchedEffect

@@ -154,6 +154,13 @@ class OrderingOperations(
                 }
                 result
             }
+            "request-staff-assistance" -> {
+                keys(args, setOf("reason"))
+                val reason = if (args.has("reason")) text(args, "reason") else "Customer requested a team member"
+                session.requestStaffAssistance(reason)
+                base().put("status", "requested").put("reason", reason)
+                    .put("ui", launchJson(launch()))
+            }
             else -> fail("FUNCTION_NOT_FOUND", "Unknown function")
         }
     }
@@ -538,6 +545,7 @@ class OrderingOperations(
             "list-menu", "get-menu-item", "search-menu", "get-cart", "apply-cart-changes", "start-new-order", "set-dining-settings",
             "add-cart-item", "update-cart-item",
             "remove-cart-item", "set-allergy-requirements", "calculate-price", "open-checkout", "submit-demo-order",
+            "request-staff-assistance",
         )
     }
 }

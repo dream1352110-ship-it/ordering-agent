@@ -106,13 +106,13 @@ fun CustomerTopBar(
 
                 val badgeBg = when {
                     isSuccessState -> DemoGreenSoft
-                    statusBadgeText == "Help requested" -> DemoDangerSoft
+                    statusBadgeText == "Help requested" -> Color(0xFFF7DED8)
                     else -> Color(0xFFE8F5E9)
                 }
 
                 val badgeText = when {
                     isSuccessState -> DemoGreen
-                    statusBadgeText == "Help requested" -> DemoDanger
+                    statusBadgeText == "Help requested" -> Color(0xFFB54736)
                     else -> Color(0xFF2E7D32)
                 }
 
@@ -120,7 +120,11 @@ fun CustomerTopBar(
                     modifier = Modifier
                         .clip(RoundedCornerShape(999.dp))
                         .background(badgeBg)
-                        .border(1.dp, badgeText.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
+                        .border(
+                            1.dp,
+                            if (statusBadgeText == "Help requested") Color(0xFFF0CDC5) else badgeText.copy(alpha = 0.35f),
+                            RoundedCornerShape(999.dp)
+                        )
                         .padding(horizontal = 14.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -137,33 +141,35 @@ fun CustomerTopBar(
                         text = statusBadgeText,
                         color = badgeText,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.ExtraBold
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
-                // 呼叫店员与重置测试按钮（平滑辅助，不破坏顾客屏美感）
-                IconButton(
-                    onClick = onCallStaff,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.SupportAgent,
-                        contentDescription = "呼叫店员",
-                        tint = DemoInkSoft,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
+                if (statusBadgeText != "Help requested") {
+                    // 呼叫店员与重置测试按钮（平滑辅助，不破坏顾客屏美感）
+                    IconButton(
+                        onClick = onCallStaff,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.SupportAgent,
+                            contentDescription = "呼叫店员",
+                            tint = DemoInkSoft,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
 
-                IconButton(
-                    onClick = onResetOrder,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.RestartAlt,
-                        contentDescription = "重置点餐",
-                        tint = DemoInkSoft,
-                        modifier = Modifier.size(18.dp)
-                    )
+                    IconButton(
+                        onClick = onResetOrder,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.RestartAlt,
+                            contentDescription = "重置点餐",
+                            tint = DemoInkSoft,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
