@@ -59,16 +59,22 @@ fun CustomerMenuStage(
             .ifEmpty { menuItems.take(3) }
     }
 
-    // 左栏：本地 Mock 的真实“主食与轻食”
-    val leftColumnItems = remember(menuItems) {
-        menuItems.filter { it.category in listOf("主食", "轻食", "烘焙") }
-            .take(6)
+    // 左栏分类：主食、轻食、小食、烘焙（全量 14 款，分类分组展示并支持平滑滑动）
+    val leftCategories = remember { listOf("主食", "轻食", "小食", "烘焙") }
+    val leftGrouped = remember(menuItems) {
+        leftCategories.mapNotNull { cat ->
+            val list = menuItems.filter { it.category == cat }
+            if (list.isNotEmpty()) cat to list else null
+        }
     }
 
-    // 右栏：本地 Mock 的真实“小食与饮品”
-    val rightColumnItems = remember(menuItems) {
-        menuItems.filter { it.category in listOf("小食", "咖啡", "茶饮", "冷饮") }
-            .take(6)
+    // 右栏分类：咖啡、茶饮、冷饮（全量 23 款，分类分组展示并支持平滑滑动）
+    val rightCategories = remember { listOf("咖啡", "茶饮", "冷饮") }
+    val rightGrouped = remember(menuItems) {
+        rightCategories.mapNotNull { cat ->
+            val list = menuItems.filter { it.category == cat }
+            if (list.isNotEmpty()) cat to list else null
+        }
     }
 
     Box(
@@ -299,64 +305,132 @@ fun CustomerMenuStage(
                         .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    // 左栏：主食与轻食 (真实本地 Mock 菜品)
+                    // 左栏：主食、轻食、小食、烘焙（全量 14 款，支持触控滑动）
                     Column(
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            text = "精选主食与沙拉",
-                            color = DemoMenuBoardGold,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "精选主食与小食烘焙",
+                                color = DemoMenuBoardGold,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = "共 14 款",
+                                color = DemoMenuBoardGoldSoft.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                         HorizontalDivider(thickness = 1.dp, color = DemoMenuBoardLine)
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(leftColumnItems, key = { it.id }) { item ->
-                                val qty = quantities[item.id] ?: 0
-                                val risks = risksProvider(item)
-                                RealMenuBoardRow(
-                                    item = item,
-                                    quantity = qty,
-                                    risks = risks,
-                                    onClick = { onItemClick(item) }
-                                )
+                            leftGrouped.forEach { (cat, items) ->
+                                item(key = "hdr_$cat") {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 3.dp, height = 11.dp)
+                                                .background(DemoMenuBoardGold, RoundedCornerShape(2.dp))
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "$cat (${items.size})",
+                                            color = DemoMenuBoardGoldSoft,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                items(items, key = { it.id }) { item ->
+                                    val qty = quantities[item.id] ?: 0
+                                    val risks = risksProvider(item)
+                                    RealMenuBoardRow(
+                                        item = item,
+                                        quantity = qty,
+                                        risks = risks,
+                                        onClick = { onItemClick(item) }
+                                    )
+                                }
                             }
                         }
                     }
 
-                    // 右栏：配菜和饮料 (真实本地 Mock 菜品)
+                    // 右栏：咖啡、茶饮、冷饮（全量 23 款，支持触控滑动）
                     Column(
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            text = "配菜和饮料",
-                            color = DemoMenuBoardGold,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "现磨咖啡与醇香饮品",
+                                color = DemoMenuBoardGold,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = "共 23 款",
+                                color = DemoMenuBoardGoldSoft.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                         HorizontalDivider(thickness = 1.dp, color = DemoMenuBoardLine)
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier.fillMaxSize()
                         ) {
-                            items(rightColumnItems, key = { it.id }) { item ->
-                                val qty = quantities[item.id] ?: 0
-                                val risks = risksProvider(item)
-                                RealMenuBoardRow(
-                                    item = item,
-                                    quantity = qty,
-                                    risks = risks,
-                                    onClick = { onItemClick(item) }
-                                )
+                            rightGrouped.forEach { (cat, items) ->
+                                item(key = "hdr_$cat") {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(width = 3.dp, height = 11.dp)
+                                                .background(DemoMenuBoardGold, RoundedCornerShape(2.dp))
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "$cat (${items.size})",
+                                            color = DemoMenuBoardGoldSoft,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                items(items, key = { it.id }) { item ->
+                                    val qty = quantities[item.id] ?: 0
+                                    val risks = risksProvider(item)
+                                    RealMenuBoardRow(
+                                        item = item,
+                                        quantity = qty,
+                                        risks = risks,
+                                        onClick = { onItemClick(item) }
+                                    )
+                                }
                             }
                         }
                     }
