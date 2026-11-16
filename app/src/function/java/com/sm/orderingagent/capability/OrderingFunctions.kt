@@ -34,6 +34,7 @@ class OrderingFunctions(
             ConfirmationMessage { raw -> operations.prepareConfirmation(raw) },
         ),
         "request-staff-assistance" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("request-staff-assistance", raw) }),
+        "show-menu" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("show-menu", raw) }),
     )
 
     private fun execute(id: String, raw: String): CapabilityResult {

@@ -95,7 +95,7 @@
     {
       "id": "get-cart",
       "function": {
-        "description": "以{}只读查询当前购物车，返回orderId、cartVersion、条目ID、完整规格、过敏要求、就餐设置和金额。用于查看车、定位条目、取得核对或重置所需的新鲜状态及冲突恢复；仍适用的新执行结果可直接复用，重放收据不能作为当前状态。",
+        "description": "以{}只读查询当前购物车后台数据。注意：此函数仅用于后台数据读取，不会切换前端UI界面。若用户表达查看订单、修改订单、核对或完成点餐，严禁调用此函数，必须调用 review-order 跳转界面。",
         "parameters": { "type": "object", "properties": {}, "required": [] }
       },
       "execution": { "timeoutMs": 15000 },
@@ -283,7 +283,7 @@
     {
       "id": "review-order",
       "function": {
-        "description": "当用户表达“我点完了”、“我要确认订单”、“我想修改订单”、“查看订单”、“修改订单”、“核对订单”、“看看我点了什么”、“买单”、“结账”、“就这些了”等意图时，必须立即调用此函数跳转到订单核对修改页面（Review order），供用户查看完整餐品明细、调整数量规格或确认下单。入参传{}即可。",
+        "description": "【核心跳转函数】当用户说“我点完了”、“我要确认订单”、“我点完了，我要确认订单”、“确认订单”、“确认下单”、“我想修改订单”、“修改订单”、“查看订单”、“看看我点了什么”、“买单”、“结账”、“就这些了”等意图时，必须立即调用此函数跳转到 Review Order 订单核对页面！严禁纯文本回复，入参传{}即可。",
         "parameters": {
           "type": "object",
           "properties": {
@@ -298,7 +298,7 @@
     {
       "id": "submit-demo-order",
       "function": {
-        "description": "提交用户已核对且仍有效的演示订单，必填summaryId、orderId、requestId和expectedCartVersion，并须完成真实用户确认。执行复核身份、版本、期限、库存和过敏要求；不接受confirmed参数。成功status=simulated、paymentProcessed=false；orderId为完成单，nextOrderId/cartVersion为当时新车快照。持久收据重放不重复下单，也不代表当前状态。",
+        "description": "【最终提交支付】仅在用户已经在 Review Order 核对页面且已看到核对单明细后，最终确认支付或提交时才调用此函数。如果用户在点餐时说“我点完了”、“我要确认订单”，严禁直接调用此函数，必须先调用 review-order 跳转核对页面！必填summaryId、orderId、requestId、expectedCartVersion。",
         "parameters": {
           "type": "object",
           "properties": {
@@ -326,13 +326,26 @@
       },
       "execution": { "timeoutMs": 15000 },
       "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "show-menu",
+      "function": {
+        "description": "【最高优先级界面跳转操作】当用户表达“我要看菜单”、“看菜单”、“看看菜单”、“我想看菜单”、“打开菜单”、“显示菜单”、“浏览菜单”、“返回菜单”、“切换到菜单”、“回菜单页”等任何类似意图时，严禁使用纯文本回复或询问用户，必须立即调用此函数跳转到点餐菜单主页（Menu 浏览页）！入参传{}即可。",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
     }
   ],
   "skills": [
     {
       "id": "restaurant-ordering",
       "name": "@string/restaurant_ordering_skill_name",
-      "description": "处理餐饮推荐、询价、加减餐、规格、就餐设置、过敏要求与核对提交；依据内嵌菜单或查询结果选择商品与完整规格，普通修改作用执行时当前购物车，按需查询状态，经用户核对和确认后提交演示订单。",
+      "description": "餐厅自助点餐与车载屏交互。核心规则：当用户说【我要看菜单】、【看菜单】、【返回菜单】必须立刻调用 show-menu 跳转菜单主页；当用户说【我点完了】、【我要确认订单】、【我想修改订单】、【查看订单】、【结账买单】等，必须立刻调用 review-order 跳转 Review Order 界面；当用户说【人工客服】、【寻求帮助】必须立刻调用 request-staff-assistance 跳转人工界面；加减餐使用 add/update/remove-cart-item。",
       "path": "osagent/skills/restaurant-ordering/SKILL.md",
       "functionIds": [
         "list-menu",
@@ -350,7 +363,8 @@
         "open-checkout",
         "review-order",
         "submit-demo-order",
-        "request-staff-assistance"
+        "request-staff-assistance",
+        "show-menu"
       ]
     }
   ]

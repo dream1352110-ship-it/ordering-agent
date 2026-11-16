@@ -127,6 +127,7 @@ class OrderingCliHandler(
             "review-order" to "{}",
             "submit-demo-order" to "{\"requestId\":\"submit-1\",\"orderId\":\"<orderId>\",\"expectedCartVersion\":1,\"summaryId\":\"<summaryId>\"}",
             "request-staff-assistance" to "{\"reason\":\"Customer requested a team member\"}",
+            "show-menu" to "{}",
         )
     }
 }

@@ -67,6 +67,17 @@ fun CustomerDriveThroughScreen(
             }
         }
 
+        // 监听来自 OSAgent 语音大模型直接触发跳转点餐菜单全览 (show-menu / list-menu)
+        LaunchedEffect(vm.pendingShowMenu) {
+            if (vm.pendingShowMenu) {
+                editingProduct = null
+                showAllergyDialog = false
+                activeQuote = null
+                currentStage = CustomerStage.Menu
+                vm.acknowledgeShowMenu()
+            }
+        }
+
         // 监听来自 OSAgent 语音大模型能力调用的订单生成 (submit-demo-order)
         LaunchedEffect(vm.latestRemoteOrder) {
             vm.latestRemoteOrder?.let { order ->

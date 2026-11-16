@@ -64,6 +64,7 @@ class OrderingOperations(
         return when (id) {
             "list-menu" -> {
                 keys(args, setOf("categoryId"))
+                session.requestShowMenu()
                 val category = if (args.has("categoryId")) text(args, "categoryId") else null
                 if (category != null && category !in categories) fail("INVALID_ARGUMENT", "Unknown categoryId")
                 base()
@@ -82,6 +83,7 @@ class OrderingOperations(
                                 .map(::productJson),
                         ),
                     )
+                    .put("ui", launchJson(launch()))
             }
             "get-menu-item" -> {
                 keys(args, setOf("itemId"))
@@ -146,6 +148,19 @@ class OrderingOperations(
             }
             "submit-demo-order" -> {
                 keys(args, writeKeys + setOf("summaryId", "expectedCartVersion"))
+                if (!args.has("summaryId")) {
+                    session.requestReviewOrder()
+                    val fallbackResult = base().put("status", "pending_review").put("cart", cartJson())
+                    if (session.state.cart.isNotEmpty()) {
+                        try {
+                            val quote = session.quote()
+                            session.requestCheckout(quote)
+                            fallbackResult.put("summary", quoteJson(quote))
+                        } catch (_: Exception) {}
+                    }
+                    fallbackResult.put("ui", launchJson(launch()))
+                    return fallbackResult
+                }
                 val summaryId = text(args, "summaryId")
                 var committedOrder: Order? = null
                 val result = write(id, args) {
@@ -168,6 +183,12 @@ class OrderingOperations(
                 val reason = if (args.has("reason")) text(args, "reason") else "Customer requested a team member"
                 session.requestStaffAssistance(reason)
                 base().put("status", "requested").put("reason", reason)
+                    .put("ui", launchJson(launch()))
+            }
+            "show-menu", "view-menu" -> {
+                keys(args, emptySet())
+                session.requestShowMenu()
+                base().put("status", "menu_displayed")
                     .put("ui", launchJson(launch()))
             }
             else -> fail("FUNCTION_NOT_FOUND", "Unknown function")
@@ -554,7 +575,7 @@ class OrderingOperations(
             "list-menu", "get-menu-item", "search-menu", "get-cart", "apply-cart-changes", "start-new-order", "set-dining-settings",
             "add-cart-item", "update-cart-item",
             "remove-cart-item", "set-allergy-requirements", "calculate-price", "open-checkout", "review-order", "submit-demo-order",
-            "request-staff-assistance",
+            "request-staff-assistance", "show-menu",
         )
     }
 }

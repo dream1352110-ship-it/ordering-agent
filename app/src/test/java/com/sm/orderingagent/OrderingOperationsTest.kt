@@ -172,6 +172,22 @@ class OrderingOperationsTest {
         assertEquals(before, ok("get-cart").toString())
     }
 
+    @Test fun showMenuAndListMenuTriggerMenuNavigation() {
+        val session = OrderingSession.get(application)
+        assertFalse(session.pendingShowMenu)
+
+        val showResult = ok("show-menu")
+        assertEquals("menu_displayed", showResult.getString("status"))
+        assertTrue(session.pendingShowMenu)
+        session.acknowledgeShowMenu()
+        assertFalse(session.pendingShowMenu)
+
+        val listResult = ok("list-menu")
+        assertTrue(listResult.getJSONArray("items").length() > 0)
+        assertTrue(session.pendingShowMenu)
+        session.acknowledgeShowMenu()
+    }
+
     private fun write(requestId: String) = JSONObject().put("requestId", requestId).put("orderId", orderId)
     private fun change(operation: String) = JSONObject().put("operation", operation)
     private fun batch(requestId: String, vararg changes: JSONObject) = write(requestId).put("changes", JSONArray(changes.toList()))

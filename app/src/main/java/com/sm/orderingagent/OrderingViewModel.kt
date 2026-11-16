@@ -17,11 +17,13 @@ class OrderingViewModel(application: Application) : AndroidViewModel(application
     val menu get() = session.menu
     val pendingCheckout get() = session.pendingCheckout
     val pendingReviewOrder get() = session.pendingReviewOrder
+    val pendingShowMenu get() = session.pendingShowMenu
     val latestRemoteOrder get() = session.latestRemoteOrder
     val pendingHandoffReason get() = session.pendingHandoffReason
     val orderGeneration get() = session.orderGeneration
     fun acknowledgeCheckout() = session.acknowledgeCheckout()
     fun acknowledgeReviewOrder() = session.acknowledgeReviewOrder()
+    fun acknowledgeShowMenu() = session.acknowledgeShowMenu()
     fun acknowledgeOrder() = session.acknowledgeOrder()
     fun acknowledgeStaffAssistance() = session.acknowledgeStaffAssistance()
     fun product(id: String) = session.product(id)
@@ -50,6 +52,8 @@ class OrderingSession private constructor(application: Application) {
         private set
     var pendingReviewOrder by mutableStateOf(false)
         private set
+    var pendingShowMenu by mutableStateOf(false)
+        private set
     var latestRemoteOrder by mutableStateOf<Order?>(null)
         private set
     var pendingHandoffReason by mutableStateOf<String?>(null)
@@ -59,6 +63,7 @@ class OrderingSession private constructor(application: Application) {
     fun clearTransientForNewOrder() {
         pendingCheckout = null
         pendingReviewOrder = false
+        pendingShowMenu = false
         latestRemoteOrder = null
         pendingHandoffReason = null
         orderGeneration += 1
@@ -70,6 +75,8 @@ class OrderingSession private constructor(application: Application) {
     fun acknowledgeCheckout() { pendingCheckout = null }
     fun requestReviewOrder() { pendingReviewOrder = true }
     fun acknowledgeReviewOrder() { pendingReviewOrder = false }
+    fun requestShowMenu() { pendingShowMenu = true }
+    fun acknowledgeShowMenu() { pendingShowMenu = false }
     fun showRemoteOrder(order: Order) { pendingCheckout = null; latestRemoteOrder = order }
     fun acknowledgeOrder() { latestRemoteOrder = null }
     fun requestStaffAssistance(reason: String) { pendingHandoffReason = reason }
