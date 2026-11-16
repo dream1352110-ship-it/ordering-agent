@@ -268,13 +268,28 @@
     {
       "id": "open-checkout",
       "function": {
-        "description": "以必填expectedCartVersion创建绑定当前版本、5分钟有效的核对单，返回summaryId、精确明细、要求、金额及到期时间，请用户核对。当用户表达“我点完了”、“我要确认订单”、“结账”、“买单”、“核对订单”、“就这些了”，或“我想修改订单”、“查看订单”、“修改订单”、“看看我点了什么”等意图时，必须立即调用此函数跳转到核对确认页面（Review order）。顶层、summary和cart的orderId一致。购物车变更或凭证失效须重新核对；仅请求显示界面，不提交、不付款、不锁库存。",
+        "description": "以当前或指定expectedCartVersion创建绑定5分钟有效的核对单并立即跳转到订单核对页面（Review order）。当用户表达“我点完了”、“我要确认订单”、“结账”、“买单”、“核对订单”、“就这些了”，或“我想修改订单”、“查看订单”、“修改订单”、“看看我点了什么”等意图时，必须立即调用此函数跳转到Review order核对修改页面。可直接传{}。",
         "parameters": {
           "type": "object",
           "properties": {
-            "expectedCartVersion": { "type": "integer", "description": "get-cart或可靠新执行结果实际返回的非负64位cartVersion；冲突后读取购物车并重新决策，不使用旧收据版本。" }
+            "expectedCartVersion": { "type": "integer", "description": "可选。购物车版本号，可省略自动使用当前版本。" }
           },
-          "required": ["expectedCartVersion"]
+          "required": []
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
+      "id": "review-order",
+      "function": {
+        "description": "当用户表达“我点完了”、“我要确认订单”、“我想修改订单”、“查看订单”、“修改订单”、“核对订单”、“看看我点了什么”、“买单”、“结账”、“就这些了”等意图时，必须立即调用此函数跳转到订单核对修改页面（Review order），供用户查看完整餐品明细、调整数量规格或确认下单。入参传{}即可。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "expectedCartVersion": { "type": "integer", "description": "可选。购物车版本号，可省略。" }
+          },
+          "required": []
         }
       },
       "execution": { "timeoutMs": 15000 },
@@ -333,6 +348,7 @@
         "set-allergy-requirements",
         "calculate-price",
         "open-checkout",
+        "review-order",
         "submit-demo-order",
         "request-staff-assistance"
       ]

@@ -127,12 +127,21 @@ class OrderingOperations(
                 }
             }
             "calculate-price" -> calculate(args)
-            "open-checkout" -> {
+            "open-checkout", "review-order" -> {
                 keys(args, setOf("expectedCartVersion"))
-                checkVersion(version(args), session.state.version)
-                val quote = session.quote()
-                val result = base().put("summary", quoteJson(quote)).put("cart", cartJson())
-                session.requestCheckout(quote)
+                if (args.has("expectedCartVersion")) {
+                    checkVersion(version(args), session.state.version)
+                }
+                session.requestReviewOrder()
+                val result = base()
+                if (session.state.cart.isNotEmpty()) {
+                    try {
+                        val quote = session.quote()
+                        session.requestCheckout(quote)
+                        result.put("summary", quoteJson(quote))
+                    } catch (_: Exception) {}
+                }
+                result.put("cart", cartJson())
                 result.put("ui", launchJson(launch()))
             }
             "submit-demo-order" -> {
@@ -544,7 +553,7 @@ class OrderingOperations(
         val operationIds: List<String> = listOf(
             "list-menu", "get-menu-item", "search-menu", "get-cart", "apply-cart-changes", "start-new-order", "set-dining-settings",
             "add-cart-item", "update-cart-item",
-            "remove-cart-item", "set-allergy-requirements", "calculate-price", "open-checkout", "submit-demo-order",
+            "remove-cart-item", "set-allergy-requirements", "calculate-price", "open-checkout", "review-order", "submit-demo-order",
             "request-staff-assistance",
         )
     }

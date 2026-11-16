@@ -121,18 +121,19 @@ sm-oscap-cli ordering start-new-order --json '{"orderId":"actual-order-id","requ
 
 requestId 为非空白1至128字符，新意图用新ID。超时或结果不确定时，重试保留原命令、全部原参数和数组顺序，包括 orderId 原本的省略或显式值。已完成原请求优先原样重放持久收据，含旧格式输入，跨重启与换单不重复执行；同ID改参数返回 REQUEST_ID_REUSED。重放的完整车、ID和版本可能属于旧状态，不能覆盖当前状态；需要当前状态时查询购物车。修改请求参数必须换新 requestId。
 
-## 核对与提交
+## 查看、修改订单与核对提交
 
-当用户表达以下意图时，必须立即调用 `open-checkout` 打开/跳转到订单核对页面（Review order）：
-1. **完成点餐与要求确认**：“我点完了”、“我要确认订单”、“结账”、“买单”、“核对订单”、“就这些了”等；
-2. **查看与修改订单明细**：“我想修改订单”、“查看订单”、“修改订单”、“看看我点了什么”等。
+当用户表达以下意图时，必须立即调用 `review-order` 或 `open-checkout` 跳转到订单核对页面（Review order）：
+1. **完成点餐**：“我点完了”、“我要确认订单”、“结账”、“买单”、“核对订单”、“就这些了”、“好了”、“帮我下单”等；
+2. **查看与修改订单明细**：“我想修改订单”、“查看订单”、“修改订单”、“看看我点了什么”、“我想改一下”、“看一下购物车”等。
 
 ```sh
+sm-oscap-cli ordering review-order --json '{}'
 sm-oscap-cli ordering open-checkout --json '{"expectedCartVersion":17}'
 sm-oscap-cli ordering submit-demo-order --json '{"orderId":"actual-order-id","summaryId":"actual-summary-id","requestId":"submit-unique-1","expectedCartVersion":17}'
 ```
 
-核对用仍新鲜的新执行结果或查询返回的实际 cartVersion；先处理空车或风险，核对单有效5分钟。顶层、summary、cart 的 orderId 应一致且属于当前单。展示精确餐品、数量、完整规格、过敏要求、就餐设置和金额，请用户核对。核对仅请求显示界面，不保证前台，不提交、不付款、不锁库存；未显示时请用户打开应用。
+调用方法极简，入参直接传 `{}` 即可，系统将立即把前台屏幕平滑切换到 Review order 订单核对修改页面，展示当前全部菜品、数量与规格，供用户核对或修改。也可带上已知版本。核对单有效5分钟，顶层、summary、cart 的 orderId 应一致且属于当前单。展示精确餐品、数量、完整规格、过敏要求、就餐设置和金额，请用户核对。核对仅请求显示界面，不保证前台，不提交、不付款、不锁库存；未显示时请用户打开应用。
 
 用户已核对且凭证有效后才提交，必填实际当前 orderId、summaryId、绑定版本 expectedCartVersion 和新 requestId，并完成本次真实用户确认。仅提交准备产生确认明细，准备只读，不是授权；其他命令准备仅校验语法和JSON。不传 confirmed 或额外确认字段；拒绝、取消、确认不可用或准备失败时停止。购物车变更、凭证过期或重启丢失后，须重新生成核对单并展示确认。
 

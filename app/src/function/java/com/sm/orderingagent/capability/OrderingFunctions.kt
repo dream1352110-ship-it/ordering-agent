@@ -28,6 +28,7 @@ class OrderingFunctions(
         "set-allergy-requirements" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("set-allergy-requirements", raw) }),
         "calculate-price" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("calculate-price", raw) }),
         "open-checkout" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("open-checkout", raw) }),
+        "review-order" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("review-order", raw) }),
         "submit-demo-order" to CapabilityFunctionHandler(
             CapabilityFunction { raw -> execute("submit-demo-order", raw) },
             ConfirmationMessage { raw -> operations.prepareConfirmation(raw) },

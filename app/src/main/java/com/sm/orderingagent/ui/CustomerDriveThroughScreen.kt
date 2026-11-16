@@ -51,9 +51,19 @@ fun CustomerDriveThroughScreen(
             vm.pendingCheckout?.let { quote ->
                 if (quote.version == state.version) {
                     activeQuote = quote
-                    currentStage = CustomerStage.CartReview
                 }
+                editingProduct = null
+                currentStage = CustomerStage.CartReview
                 vm.acknowledgeCheckout()
+            }
+        }
+
+        // 监听来自 OSAgent 语音大模型直接触发跳转核对/修改订单 (review-order)
+        LaunchedEffect(vm.pendingReviewOrder) {
+            if (vm.pendingReviewOrder) {
+                editingProduct = null
+                currentStage = CustomerStage.CartReview
+                vm.acknowledgeReviewOrder()
             }
         }
 
@@ -77,19 +87,15 @@ fun CustomerDriveThroughScreen(
             }
         }
 
-        // 5分钟核对单生命周期与购物车版本失效倒计时（完全承袭 fcdad020 领域逻辑）
+        // 5分钟核对单生命周期与购物车版本失效倒计时
         LaunchedEffect(activeQuote?.id, state.version) {
             val current = activeQuote ?: return@LaunchedEffect
             val remaining = current.createdAt + 300_000L - System.currentTimeMillis()
             if (current.version == state.version && remaining > 0) {
                 kotlinx.coroutines.delay(remaining)
             }
-            if (activeQuote?.id == current.id && currentStage is CustomerStage.CartReview) {
+            if (activeQuote?.id == current.id) {
                 activeQuote = null
-                currentStage = CustomerStage.Menu
-                scope.launch {
-                    snackbarHostState.showSnackbar("订单已变更或核对单已过期，请重新核对")
-                }
             }
         }
 

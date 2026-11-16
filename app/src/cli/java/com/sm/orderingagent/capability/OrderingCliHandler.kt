@@ -124,7 +124,9 @@ class OrderingCliHandler(
             "set-allergy-requirements" to "{\"requestId\":\"allergy-1\",\"allergenIds\":[\"milk\"]}",
             "calculate-price" to "{\"items\":[{\"itemId\":\"fries\",\"quantity\":1,\"options\":{}}]}",
             "open-checkout" to "{\"expectedCartVersion\":1}",
+            "review-order" to "{}",
             "submit-demo-order" to "{\"requestId\":\"submit-1\",\"orderId\":\"<orderId>\",\"expectedCartVersion\":1,\"summaryId\":\"<summaryId>\"}",
+            "request-staff-assistance" to "{\"reason\":\"Customer requested a team member\"}",
         )
     }
 }
