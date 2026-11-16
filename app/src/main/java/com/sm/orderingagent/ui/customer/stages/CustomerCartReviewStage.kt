@@ -5,13 +5,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Remove
-import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -25,7 +25,6 @@ import com.sm.orderingagent.domain.Allergen
 import com.sm.orderingagent.domain.CartItem
 import com.sm.orderingagent.domain.MenuItem
 import com.sm.orderingagent.domain.OrderingState
-import com.sm.orderingagent.ui.customer.components.CustomerVoicePromptBar
 import com.sm.orderingagent.ui.theme.*
 
 @Composable
@@ -33,6 +32,8 @@ fun CustomerCartReviewStage(
     state: OrderingState,
     menu: List<MenuItem>,
     totalCents: Int,
+    isConfirmed: Boolean = false,
+    orderIdText: String? = null,
     allergens: Set<Allergen> = state.allergens,
     blockers: List<String> = emptyList(),
     onBackToMenu: () -> Unit,
@@ -44,26 +45,47 @@ fun CustomerCartReviewStage(
 ) {
     val totalCount = state.cart.sumOf { it.quantity }
 
-    Box(
+    val pageTitle = when {
+        isConfirmed -> "Order ${orderIdText ?: state.currentOrderId.take(7)}"
+        blockers.isEmpty() && state.cart.isNotEmpty() -> "Review order"
+        else -> "Your order"
+    }
+
+    val pageBadge = when {
+        isConfirmed -> "CONFIRMED"
+        blockers.isEmpty() && state.cart.isNotEmpty() -> "PLEASE CONFIRM"
+        else -> "$totalCount ITEM${if (totalCount > 1) "S" else ""}"
+    }
+
+    val voicePromptText = when {
+        isConfirmed -> "Thank you. Please proceed to the next window."
+        blockers.isEmpty() && state.cart.isNotEmpty() -> "Say “confirm” to place the order or “change” to edit it."
+        else -> "Say “add fries”, “that’s all”, or “remove the Coke”."
+    }
+
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(DemoPaper)
+            .padding(horizontal = 24.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+                .fillMaxWidth()
+                .weight(1f)
         ) {
-            // 顶部导航与标题栏
+            // 1. 顶部标题与徽章 (Section 6.2 / 6.3 1:1 标准)
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     FilledTonalIconButton(
                         onClick = onBackToMenu,
@@ -71,253 +93,219 @@ fun CustomerCartReviewStage(
                             containerColor = DemoSurface,
                             contentColor = DemoInk
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.size(44.dp)
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                            contentDescription = "返回菜单"
+                            contentDescription = "返回菜单",
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
-                    Column {
-                        Text(
-                            text = "Review order",
-                            color = DemoInk,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        Text(
-                            text = if (totalCount > 0) "$totalCount items in order" else "No items",
-                            color = DemoInkSoft,
-                            fontSize = 13.sp
-                        )
-                    }
+                    Text(
+                        text = pageTitle,
+                        color = DemoInk,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = (-0.5).sp
+                    )
                 }
 
-                // 避忌过敏原与堂食/外带标识
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Surface(
+                    color = DemoSurfaceWarm,
+                    shape = RoundedCornerShape(999.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine)
                 ) {
-                    if (allergens.isNotEmpty()) {
-                        Surface(
-                            color = DemoDangerSoft,
-                            shape = RoundedCornerShape(999.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.5f))
-                        ) {
-                            Text(
-                                text = "⚠️ 避忌: ${allergens.joinToString { it.label }}",
-                                color = DemoDanger,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
+                    Text(
+                        text = pageBadge,
+                        color = DemoInkSoft,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
 
-                    Surface(
-                        color = DemoSurfaceWarm,
-                        shape = RoundedCornerShape(999.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine)
+            // 2. 如果已出单，展示 Section 6.3 绿色 Order sent to kitchen 横幅
+            if (isConfirmed) {
+                Surface(
+                    color = Color(0xFFDFF1E6),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBE5CB)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (state.serviceMode == "takeout" || state.serviceMode == "外带") "打包带走" else "堂食就餐 (${state.partySize}人)",
-                            color = DemoInk,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            text = "Order sent to kitchen",
+                            color = Color(0xFF1B5E20),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "ACCEPTED",
+                            color = Color(0xFF1B5E20),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 若存在阻断（如过敏原冲突），顶部展示详细风险卡片
+            // 3. 过敏原冲突风险提示卡片（若存在）
             if (blockers.isNotEmpty()) {
                 Surface(
                     color = DemoDangerSoft,
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.6f)),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
+                        modifier = Modifier.padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = "⚠️ 存在过敏原风险阻断，无法提交订单：",
                             color = DemoDanger,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                         blockers.forEach { blocker ->
-                            Text(
-                                text = "• $blocker",
-                                color = DemoDanger,
-                                fontSize = 13.sp
-                            )
+                            Text(text = "• $blocker", color = DemoDanger, fontSize = 12.sp)
                         }
-                        Text(
-                            text = "提示：请在下方列表中减少或移除冲突餐品，或调整避忌过敏原后继续。",
-                            color = DemoInkSoft,
-                            fontSize = 11.sp
-                        )
                     }
                 }
             }
 
-            // 中部：购物车商品列表或空状态
-            if (state.cart.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+            // 4. 订单商品明细卡片 (Section 6.2 经典白色大卡片)
+            Surface(
+                color = DemoSurface,
+                shape = RoundedCornerShape(14.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+            ) {
+                if (state.cart.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.ShoppingCart,
-                            contentDescription = null,
-                            tint = DemoLineStrong,
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Text(
-                            text = "Your order is empty",
-                            color = DemoInk,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Say what you would like to order.",
-                            color = DemoInkSoft,
-                            fontSize = 14.sp
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = onBackToMenu,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = DemoAccent,
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("返回选购菜单", fontWeight = FontWeight.Bold)
-                        }
+                        Text(text = "No items in the order.", color = DemoInkSoft, fontSize = 14.sp)
                     }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 16.dp)
-                ) {
-                    items(state.cart, key = { it.id }) { line ->
-                        val product = menu.firstOrNull { it.id == line.itemId }
-                        val unitPriceCents = product?.let { p ->
-                            try {
-                                p.unitPrice(line.options)
-                            } catch (_: Exception) {
-                                p.priceCents
-                            }
-                        } ?: 0
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(state.cart, key = { it.id }) { line ->
+                            val product = menu.firstOrNull { it.id == line.itemId }
+                            val unitPriceCents = product?.let { p ->
+                                try { p.unitPrice(line.options) } catch (_: Exception) { p.priceCents }
+                            } ?: 0
 
-                        val lineSubtotalCents = unitPriceCents * line.quantity
+                            val lineSubtotalCents = unitPriceCents * line.quantity
 
-                        Surface(
-                            color = DemoSurface,
-                            shape = RoundedCornerShape(14.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.Top
                             ) {
-                                // 左侧：名称与规格详情
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = product?.name ?: line.itemId,
                                         color = DemoInk,
-                                        fontSize = 17.sp,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(3.dp))
                                     Text(
                                         text = product?.optionText(line.options) ?: "标准规格",
                                         color = DemoInkSoft,
-                                        fontSize = 13.sp
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "单价: ¥" + String.format("%.2f", unitPriceCents / 100.0),
-                                        color = DemoInkSoft,
-                                        fontSize = 12.sp
+                                        fontSize = 12.sp,
+                                        lineHeight = 16.sp
                                     )
                                 }
 
-                                // 右侧：加减按钮与小计
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    // 数量加减微调器
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(999.dp))
-                                            .background(DemoSurfaceWarm)
-                                            .border(1.dp, DemoLine, RoundedCornerShape(999.dp))
-                                            .padding(horizontal = 6.dp, vertical = 4.dp)
-                                    ) {
-                                        IconButton(
-                                            onClick = {
-                                                if (line.quantity <= 1) onRemoveItem(line)
-                                                else onDecreaseItem(line)
-                                            },
-                                            modifier = Modifier.size(28.dp)
+                                    // 数量微调器
+                                    if (!isConfirmed) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(999.dp))
+                                                .background(DemoSurfaceWarm)
+                                                .border(1.dp, DemoLine, RoundedCornerShape(999.dp))
+                                                .padding(horizontal = 4.dp, vertical = 2.dp)
                                         ) {
-                                            Icon(
-                                                imageVector = if (line.quantity <= 1) Icons.Outlined.DeleteOutline else Icons.Outlined.Remove,
-                                                contentDescription = "减少",
-                                                tint = if (line.quantity <= 1) DemoDanger else DemoInkSoft,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
+                                            IconButton(
+                                                onClick = {
+                                                    if (line.quantity <= 1) onRemoveItem(line)
+                                                    else onDecreaseItem(line)
+                                                },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (line.quantity <= 1) Icons.Outlined.DeleteOutline else Icons.Outlined.Remove,
+                                                    contentDescription = "减少",
+                                                    tint = if (line.quantity <= 1) DemoDanger else DemoInkSoft,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
 
+                                            Text(
+                                                text = "${line.quantity}",
+                                                color = DemoInk,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+
+                                            IconButton(
+                                                onClick = { onIncreaseItem(line) },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Outlined.Add,
+                                                    contentDescription = "增加",
+                                                    tint = DemoAccent,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                            }
+                                        }
+                                    } else {
                                         Text(
-                                            text = "${line.quantity}",
-                                            color = DemoInk,
-                                            fontSize = 15.sp,
+                                            text = "x${line.quantity}",
+                                            color = DemoInkSoft,
+                                            fontSize = 14.sp,
                                             fontWeight = FontWeight.Bold
                                         )
-
-                                        IconButton(
-                                            onClick = { onIncreaseItem(line) },
-                                            modifier = Modifier.size(28.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Add,
-                                                contentDescription = "增加",
-                                                tint = DemoAccent,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
                                     }
 
-                                    // 单行小计金额
+                                    // 金额
                                     Text(
-                                        text = "¥" + String.format("%.2f", lineSubtotalCents / 100.0),
-                                        color = DemoDanger,
-                                        fontSize = 18.sp,
+                                        text = "R " + String.format("%.2f", lineSubtotalCents / 100.0),
+                                        color = DemoInk,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.ExtraBold
                                     )
                                 }
@@ -326,106 +314,106 @@ fun CustomerCartReviewStage(
                     }
                 }
             }
+        }
 
-            // 底部核对汇总与大按钮
-            if (state.cart.isNotEmpty()) {
-                Surface(
-                    color = DemoSurface,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, DemoLineStrong),
-                    modifier = Modifier.fillMaxWidth()
+        // 5. 底部金额汇总与 Section 6.2 语音指令提示框 (review-order-footer)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            HorizontalDivider(color = DemoLine)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Subtotal", color = DemoInkSoft, fontSize = 13.sp)
+                Text(text = "R " + String.format("%.2f", totalCents / 100.0), color = DemoInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Total", color = DemoInk, fontSize = 26.sp, fontWeight = FontWeight.Black)
+                Text(
+                    text = "R " + String.format("%.2f", totalCents / 100.0),
+                    color = DemoInk,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+
+            // Section 6 虚线框语音提示条 (.voice-prompt)
+            Surface(
+                color = Color(0x73FFFFFF),
+                shape = RoundedCornerShape(11.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, DemoLineStrong),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(20.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        // 金额统计明细
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Bottom
-                        ) {
-                            Column {
-                                Text(
-                                    text = "应付总金额 Total",
-                                    color = DemoInkSoft,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "含税 · 价格均已计算规格加价",
-                                    color = DemoLineStrong,
-                                    fontSize = 11.sp
-                                )
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.Bottom,
-                                horizontalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    text = "¥",
-                                    color = DemoDanger,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = String.format("%.2f", totalCents / 100.0),
-                                    color = DemoDanger,
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                        }
-
-                        // 确认下单大按钮与返回继续选购
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = onBackToMenu,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = DemoInk)
-                            ) {
-                                Text("继续加餐", fontSize = 16.sp)
-                            }
-
-                            Button(
-                                onClick = onSubmitOrder,
-                                enabled = blockers.isEmpty(),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .weight(1.8f)
-                                    .height(52.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (blockers.isNotEmpty()) DemoLineStrong else DemoAccent,
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Text(
-                                    text = if (blockers.isNotEmpty()) "存在过敏风险无法下单" else "确认下单 (¥" + String.format("%.2f", totalCents / 100.0) + ")",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                            }
-                        }
-                    }
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(DemoAccent)
+                    )
+                    Text(
+                        text = voicePromptText,
+                        color = DemoInkSoft,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            // 触屏确认提交与加餐大按钮
+            if (!isConfirmed && state.cart.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onBackToMenu,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine)
+                    ) {
+                        Text("继续加餐", color = DemoInk)
+                    }
 
-            // 底部语音提示
-            CustomerVoicePromptBar(
-                promptText = "Say “confirm” to place the order or “add fries” to add items."
-            )
+                    Button(
+                        onClick = onSubmitOrder,
+                        enabled = blockers.isEmpty(),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1.6f)
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (blockers.isEmpty()) DemoAccent else DemoLineStrong,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(
+                            text = if (blockers.isNotEmpty()) "存在过敏风险无法提交" else "确认下单",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }

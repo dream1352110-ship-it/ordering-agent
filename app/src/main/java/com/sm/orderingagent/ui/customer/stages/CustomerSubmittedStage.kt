@@ -1,15 +1,11 @@
 package com.sm.orderingagent.ui.customer.stages
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sm.orderingagent.domain.MenuItem
 import com.sm.orderingagent.domain.Order
-import com.sm.orderingagent.ui.customer.components.CustomerVoicePromptBar
 import com.sm.orderingagent.ui.theme.*
 
 @Composable
@@ -31,201 +26,222 @@ fun CustomerSubmittedStage(
     onStartNewOrder: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
             .background(DemoPaper)
+            .padding(horizontal = 24.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.SpaceBetween
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxWidth()
+                .weight(1f)
         ) {
-            // 顶部成功标志与大号取餐号
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.padding(top = 16.dp)
+            // 1. 顶部标题与 CONFIRMED 徽章 (Section 6.3 1:1)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(DemoGreenSoft)
-                        .border(2.dp, DemoGreen, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Check,
-                        contentDescription = "Order Confirmed",
-                        tint = DemoGreen,
-                        modifier = Modifier.size(38.dp)
-                    )
-                }
-
                 Text(
-                    text = "Order sent to kitchen",
-                    color = DemoGreen,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    text = "Order ${order.number}",
+                    color = DemoInk,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.5).sp
                 )
 
-                // 大号取餐码卡片
                 Surface(
-                    color = DemoSurface,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, DemoLineStrong),
-                    modifier = Modifier.fillMaxWidth(0.85f)
+                    color = DemoSurfaceWarm,
+                    shape = RoundedCornerShape(999.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(vertical = 16.dp, horizontal = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "PICKUP CODE",
-                            color = DemoInkSoft,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = order.number.ifBlank { order.id.takeLast(8).uppercase() },
-                            color = DemoAccent,
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 2.sp
-                        )
-                        Text(
-                            text = if (order.serviceMode == "takeout" || order.serviceMode == "外带") "Drive-thru Pickup · Next window" else "堂食就餐 (${order.partySize}人)",
-                            color = DemoInk,
-                            fontSize = 14.sp
-                        )
-                    }
+                    Text(
+                        text = "CONFIRMED",
+                        color = DemoInkSoft,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.5.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // 2. 绿色横幅 Order sent to kitchen ACCEPTED (Section 6.3 1:1)
+            Surface(
+                color = Color(0xFFDFF1E6),
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFBBE5CB)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 14.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Order sent to kitchen",
+                        color = Color(0xFF1B5E20),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "ACCEPTED",
+                        color = Color(0xFF1B5E20),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.sp
+                    )
+                }
+            }
 
-            // 中部：已点餐品明细小卡片
+            // 3. 订单内容卡片
             Surface(
                 color = DemoSurface,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine),
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(0.9f)
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Order Items",
-                            color = DemoInkSoft,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Total ¥" + String.format("%.2f", order.totalCents / 100.0),
-                            color = DemoDanger,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    HorizontalDivider(color = DemoLine)
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(order.lines) { line ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "${line.quantity}×",
-                                        color = DemoAccent,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Column {
-                                        Text(
-                                            text = line.name,
-                                            color = DemoInk,
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                        if (line.options.isNotBlank()) {
-                                            Text(
-                                                text = line.options,
-                                                color = DemoInkSoft,
-                                                fontSize = 12.sp
-                                            )
-                                        }
-                                    }
-                                }
-
+                    items(order.lines) { line ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "¥" + String.format("%.2f", (line.unitPriceCents * line.quantity) / 100.0),
+                                    text = line.name,
+                                    color = DemoInk,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (line.options.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = line.options,
+                                        color = DemoInkSoft,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                Text(
+                                    text = "R " + String.format("%.2f", (line.unitPriceCents * line.quantity) / 100.0),
+                                    color = DemoInk,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Text(
+                                    text = "x${line.quantity}",
                                     color = DemoInkSoft,
-                                    fontSize = 14.sp
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     }
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(16.dp))
+        // 4. 底部金额与 Section 6.3 语音指引
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            HorizontalDivider(color = DemoLine)
 
-            // 底部操作区与温馨提示
-            Column(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
-                    onClick = onStartNewOrder,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DemoInk,
-                        contentColor = Color.White
-                    ),
+                Text(text = "Subtotal", color = DemoInkSoft, fontSize = 13.sp)
+                Text(
+                    text = "R " + String.format("%.2f", order.totalCents / 100.0),
+                    color = DemoInk,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "Total", color = DemoInk, fontSize = 26.sp, fontWeight = FontWeight.Black)
+                Text(
+                    text = "R " + String.format("%.2f", order.totalCents / 100.0),
+                    color = DemoInk,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+
+            // Section 6 虚线框语音提示条 (.voice-prompt)
+            Surface(
+                color = Color(0x73FFFFFF),
+                shape = RoundedCornerShape(11.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, DemoLineStrong),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
                     modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .height(50.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Restaurant,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(DemoAccent)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Start new order",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "Thank you. Please proceed to the next window.",
+                        color = DemoInkSoft,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
+            }
 
-                CustomerVoicePromptBar(
-                    promptText = "Thank you. Please proceed to the next window."
-                )
+            // 开始新订单按钮
+            Button(
+                onClick = onStartNewOrder,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = DemoAccent,
+                    contentColor = Color.White
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text("开始新点餐 / Next Order", fontSize = 15.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

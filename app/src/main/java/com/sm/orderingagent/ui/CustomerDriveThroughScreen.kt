@@ -78,13 +78,13 @@ fun CustomerDriveThroughScreen(
             topBar = {
                 CustomerTopBar(
                     laneNo = "01",
-                    aiStateText = when (currentStage) {
-                        is CustomerStage.Handoff -> "Staff assigned"
-                        is CustomerStage.Submitted -> "Sent to kitchen"
-                        is CustomerStage.CartReview -> "Reviewing order"
-                        else -> aiListeningText
+                    statusBadgeText = when (currentStage) {
+                        is CustomerStage.Handoff -> "Help requested"
+                        is CustomerStage.Submitted -> "Confirmed"
+                        is CustomerStage.CartReview -> if (state.cart.isNotEmpty()) "Please confirm" else "In cart"
+                        is CustomerStage.Clarify -> "Choose an option"
+                        else -> if (state.cart.isNotEmpty()) "In cart" else "Listening"
                     },
-                    isListening = currentStage !is CustomerStage.Handoff,
                     allergens = state.allergens,
                     onEditAllergens = { showAllergyDialog = true },
                     onCallStaff = {

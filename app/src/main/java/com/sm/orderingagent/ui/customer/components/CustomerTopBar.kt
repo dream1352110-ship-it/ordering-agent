@@ -3,12 +3,12 @@ package com.sm.orderingagent.ui.customer.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.RestartAlt
-import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -26,8 +26,7 @@ import com.sm.orderingagent.ui.theme.*
 @Composable
 fun CustomerTopBar(
     laneNo: String = "01",
-    aiStateText: String = "Ready to order",
-    isListening: Boolean = true,
+    statusBadgeText: String = "Listening",
     allergens: Set<Allergen> = emptySet(),
     onEditAllergens: () -> Unit = {},
     onCallStaff: () -> Unit,
@@ -36,10 +35,10 @@ fun CustomerTopBar(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
+        initialValue = 0.3f,
         targetValue = 1.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
+            animation = tween(800, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseAlpha"
@@ -59,166 +58,111 @@ fun CustomerTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 14.dp),
+                .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 左侧：车道芯片与 FLEX / VOICE 经典品牌标
+            // 左侧：标准顾客屏标题 Lane 01 (Section 6 截图标准)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 车道芯片
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(DemoGreenSoft)
-                        .border(1.dp, DemoGreen.copy(alpha = 0.4f), RoundedCornerShape(9.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(DemoGreen.copy(alpha = if (isListening) pulseAlpha else 1f))
-                    )
-                    Text(
-                        text = "Lane $laneNo",
-                        color = DemoGreen,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                }
-
-                // Demo 原版 3 条青柠绿柱品牌标
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(DemoInk),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(3.dp),
-                            verticalAlignment = Alignment.Bottom,
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        ) {
-                            Box(Modifier.width(4.dp).height(10.dp).clip(CircleShape).background(DemoLime))
-                            Box(Modifier.width(4.dp).height(16.dp).clip(CircleShape).background(DemoLime))
-                            Box(Modifier.width(4.dp).height(22.dp).clip(CircleShape).background(DemoLime))
-                        }
-                    }
-
-                    Column {
-                        Text(
-                            text = "FLEX / VOICE",
-                            color = DemoInk,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = "Drive-through order journey",
-                            color = DemoInkSoft,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
-
-            // 中间：状态指示（Ready to order / AI listening）
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(DemoSurfaceWarm)
-                    .border(1.dp, DemoLine, RoundedCornerShape(999.dp))
-                    .padding(horizontal = 16.dp, vertical = 7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(9.dp)
-                        .clip(CircleShape)
-                        .background(DemoAccent.copy(alpha = pulseAlpha))
-                )
                 Text(
-                    text = aiStateText,
+                    text = "Lane $laneNo",
                     color = DemoInk,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.5).sp
                 )
+
+                // 避忌过敏原胶囊标签（若已设置）
+                if (allergens.isNotEmpty()) {
+                    Surface(
+                        color = DemoDangerSoft,
+                        shape = RoundedCornerShape(999.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.5f)),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable(onClick = onEditAllergens)
+                    ) {
+                        Text(
+                            text = "⚠️ 避忌: ${allergens.joinToString { it.label }}",
+                            color = DemoDanger,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
             }
 
-            // 右侧：过敏原偏好、呼叫人工与重置操作
+            // 右侧：Section 6 顾客屏经典状态徽章 (Listening / In cart / Please confirm / Confirmed)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // 过敏原状态按钮 / 入口
-                FilledTonalButton(
-                    onClick = onEditAllergens,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = if (allergens.isNotEmpty()) DemoDangerSoft else DemoSurfaceWarm,
-                        contentColor = if (allergens.isNotEmpty()) DemoDanger else DemoInk
-                    ),
-                    shape = RoundedCornerShape(9.dp),
-                    border = if (allergens.isNotEmpty()) {
-                        androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.5f))
-                    } else null,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                val isSuccessState = statusBadgeText in listOf("Confirmed", "Accepted", "Ready")
+                val isWaitingState = statusBadgeText in listOf("Listening", "In cart", "Please confirm", "Choose an option")
+
+                val badgeBg = when {
+                    isSuccessState -> DemoGreenSoft
+                    statusBadgeText == "Help requested" -> DemoDangerSoft
+                    else -> Color(0xFFE8F5E9)
+                }
+
+                val badgeText = when {
+                    isSuccessState -> DemoGreen
+                    statusBadgeText == "Help requested" -> DemoDanger
+                    else -> Color(0xFF2E7D32)
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(badgeBg)
+                        .border(1.dp, badgeText.copy(alpha = 0.35f), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Shield,
-                        contentDescription = "过敏原设置",
-                        tint = if (allergens.isNotEmpty()) DemoDanger else DemoAccent,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    if (isWaitingState) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(badgeText.copy(alpha = pulseAlpha))
+                        )
+                    }
                     Text(
-                        text = if (allergens.isNotEmpty()) {
-                            "避忌: ${allergens.joinToString { it.label }}"
-                        } else {
-                            "过敏原"
-                        },
+                        text = statusBadgeText,
+                        color = badgeText,
                         fontSize = 13.sp,
-                        fontWeight = if (allergens.isNotEmpty()) FontWeight.Bold else FontWeight.SemiBold
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
 
-                FilledTonalButton(
+                // 呼叫店员与重置测试按钮（平滑辅助，不破坏顾客屏美感）
+                IconButton(
                     onClick = onCallStaff,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = DemoSurfaceWarm,
-                        contentColor = DemoInk
-                    ),
-                    shape = RoundedCornerShape(9.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.SupportAgent,
-                        contentDescription = "呼叫人工",
-                        tint = DemoAccent,
+                        contentDescription = "呼叫店员",
+                        tint = DemoInkSoft,
                         modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = "呼叫人工", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 IconButton(
                     onClick = onResetOrder,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.RestartAlt,
                         contentDescription = "重置点餐",
-                        tint = DemoInkSoft
+                        tint = DemoInkSoft,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
