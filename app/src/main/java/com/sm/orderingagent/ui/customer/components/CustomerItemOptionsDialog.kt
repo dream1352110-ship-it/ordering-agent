@@ -30,6 +30,7 @@ fun CustomerItemOptionsDialog(
     initialQuantity: Int = 1,
     initialOptions: Map<String, String> = item.defaults,
     remainingStock: Int,
+    risks: List<String> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (quantity: Int, options: Map<String, String>) -> Unit
 ) {
@@ -110,6 +111,59 @@ fun CustomerItemOptionsDialog(
                             fontSize = 14.sp,
                             lineHeight = 20.sp
                         )
+                    }
+
+                    // 过敏原与配料资料卡片
+                    Surface(
+                        color = if (risks.isNotEmpty()) DemoDangerSoft else DemoSurfaceWarm,
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (risks.isNotEmpty()) DemoDanger.copy(alpha = 0.5f) else DemoLine
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            if (risks.isNotEmpty()) {
+                                Text(
+                                    text = "⚠️ 过敏原风险：${risks.joinToString("、")}",
+                                    color = DemoDanger,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            if (item.contains.isNotEmpty()) {
+                                Text(
+                                    text = "已知含有：${item.contains.joinToString("、") { it.label }}",
+                                    color = if (risks.isNotEmpty()) DemoDanger else DemoInk,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            if (item.mayContain.isNotEmpty()) {
+                                Text(
+                                    text = "可能接触：${item.mayContain.joinToString("、") { it.label }}",
+                                    color = DemoInkSoft,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            if (item.ingredients.isNotBlank()) {
+                                Text(
+                                    text = "主要配料：${item.ingredients}",
+                                    color = DemoInkSoft,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            if (!item.allergenInfoComplete) {
+                                Text(
+                                    text = "提示：本餐品过敏原资料尚不完整，如设置避忌将自动阻断。",
+                                    color = DemoInkSoft,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
                     }
 
                     // 规格选项组
@@ -221,16 +275,16 @@ fun CustomerItemOptionsDialog(
                         // 加入购物车
                         Button(
                             onClick = { onConfirm(quantity, selectedOptions) },
-                            enabled = remainingStock > 0,
+                            enabled = remainingStock > 0 && risks.isEmpty(),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = DemoAccent,
+                                containerColor = if (risks.isNotEmpty()) DemoLineStrong else DemoAccent,
                                 contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(10.dp),
                             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                         ) {
                             Text(
-                                text = "确认 · ¥" + String.format("%.2f", (currentUnitPriceCents * quantity) / 100.0),
+                                text = if (risks.isNotEmpty()) "过敏冲突无法加购" else "确认 · ¥" + String.format("%.2f", (currentUnitPriceCents * quantity) / 100.0),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )

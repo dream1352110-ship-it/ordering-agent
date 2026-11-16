@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sm.orderingagent.domain.Allergen
 import com.sm.orderingagent.ui.theme.*
 
 @Composable
@@ -26,6 +28,8 @@ fun CustomerTopBar(
     laneNo: String = "01",
     aiStateText: String = "Ready to order",
     isListening: Boolean = true,
+    allergens: Set<Allergen> = emptySet(),
+    onEditAllergens: () -> Unit = {},
     onCallStaff: () -> Unit,
     onResetOrder: () -> Unit,
     modifier: Modifier = Modifier
@@ -152,11 +156,42 @@ fun CustomerTopBar(
                 )
             }
 
-            // 右侧：呼叫人工与重置操作
+            // 右侧：过敏原偏好、呼叫人工与重置操作
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // 过敏原状态按钮 / 入口
+                FilledTonalButton(
+                    onClick = onEditAllergens,
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = if (allergens.isNotEmpty()) DemoDangerSoft else DemoSurfaceWarm,
+                        contentColor = if (allergens.isNotEmpty()) DemoDanger else DemoInk
+                    ),
+                    shape = RoundedCornerShape(9.dp),
+                    border = if (allergens.isNotEmpty()) {
+                        androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.5f))
+                    } else null,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Shield,
+                        contentDescription = "过敏原设置",
+                        tint = if (allergens.isNotEmpty()) DemoDanger else DemoAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (allergens.isNotEmpty()) {
+                            "避忌: ${allergens.joinToString { it.label }}"
+                        } else {
+                            "过敏原"
+                        },
+                        fontSize = 13.sp,
+                        fontWeight = if (allergens.isNotEmpty()) FontWeight.Bold else FontWeight.SemiBold
+                    )
+                }
+
                 FilledTonalButton(
                     onClick = onCallStaff,
                     colors = ButtonDefaults.filledTonalButtonColors(

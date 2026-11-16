@@ -27,6 +27,7 @@ fun CustomerMenuItemCard(
     item: MenuItem,
     index: Int,
     quantityInCart: Int,
+    risks: List<String> = emptyList(),
     onCardClick: () -> Unit,
     onAddClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -75,8 +76,24 @@ fun CustomerMenuItemCard(
                     )
                 }
 
-                // 已点数量角标
-                if (isAdded) {
+                // 过敏原冲突提示 / 已点数量角标
+                if (risks.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(DemoDangerSoft)
+                            .border(1.dp, DemoDanger.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "⚠️ " + risks.first(),
+                            color = DemoDanger,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else if (isAdded) {
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(999.dp))

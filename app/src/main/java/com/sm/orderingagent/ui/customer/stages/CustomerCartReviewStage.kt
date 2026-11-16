@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.sm.orderingagent.domain.Allergen
 import com.sm.orderingagent.domain.CartItem
 import com.sm.orderingagent.domain.MenuItem
 import com.sm.orderingagent.domain.OrderingState
@@ -32,6 +33,8 @@ fun CustomerCartReviewStage(
     state: OrderingState,
     menu: List<MenuItem>,
     totalCents: Int,
+    allergens: Set<Allergen> = state.allergens,
+    blockers: List<String> = emptyList(),
     onBackToMenu: () -> Unit,
     onIncreaseItem: (CartItem) -> Unit,
     onDecreaseItem: (CartItem) -> Unit,
@@ -92,23 +95,78 @@ fun CustomerCartReviewStage(
                     }
                 }
 
-                // 堂食/外带标识
-                Surface(
-                    color = DemoSurfaceWarm,
-                    shape = RoundedCornerShape(999.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine)
+                // 避忌过敏原与堂食/外带标识
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = if (state.serviceMode == "takeout" || state.serviceMode == "外带") "打包带走" else "堂食就餐 (${state.partySize}人)",
-                        color = DemoInk,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                    )
+                    if (allergens.isNotEmpty()) {
+                        Surface(
+                            color = DemoDangerSoft,
+                            shape = RoundedCornerShape(999.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "⚠️ 避忌: ${allergens.joinToString { it.label }}",
+                                color = DemoDanger,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+
+                    Surface(
+                        color = DemoSurfaceWarm,
+                        shape = RoundedCornerShape(999.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, DemoLine)
+                    ) {
+                        Text(
+                            text = if (state.serviceMode == "takeout" || state.serviceMode == "外带") "打包带走" else "堂食就餐 (${state.partySize}人)",
+                            color = DemoInk,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        )
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // 若存在阻断（如过敏原冲突），顶部展示详细风险卡片
+            if (blockers.isNotEmpty()) {
+                Surface(
+                    color = DemoDangerSoft,
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.6f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "⚠️ 存在过敏原风险阻断，无法提交订单：",
+                            color = DemoDanger,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        blockers.forEach { blocker ->
+                            Text(
+                                text = "• $blocker",
+                                color = DemoDanger,
+                                fontSize = 13.sp
+                            )
+                        }
+                        Text(
+                            text = "提示：请在下方列表中减少或移除冲突餐品，或调整避忌过敏原后继续。",
+                            color = DemoInkSoft,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
 
             // 中部：购物车商品列表或空状态
             if (state.cart.isEmpty()) {
@@ -341,18 +399,19 @@ fun CustomerCartReviewStage(
 
                             Button(
                                 onClick = onSubmitOrder,
+                                enabled = blockers.isEmpty(),
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .weight(1.8f)
                                     .height(52.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = DemoAccent,
+                                    containerColor = if (blockers.isNotEmpty()) DemoLineStrong else DemoAccent,
                                     contentColor = Color.White
                                 )
                             ) {
                                 Text(
-                                    text = "确认下单 (¥" + String.format("%.2f", totalCents / 100.0) + ")",
-                                    fontSize = 17.sp,
+                                    text = if (blockers.isNotEmpty()) "存在过敏风险无法下单" else "确认下单 (¥" + String.format("%.2f", totalCents / 100.0) + ")",
+                                    fontSize = 16.sp,
                                     fontWeight = FontWeight.ExtraBold
                                 )
                             }

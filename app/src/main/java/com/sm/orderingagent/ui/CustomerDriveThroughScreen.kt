@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import com.sm.orderingagent.OrderingViewModel
 import com.sm.orderingagent.domain.MenuItem
 import com.sm.orderingagent.ui.customer.CustomerStage
+import com.sm.orderingagent.ui.customer.components.CustomerAllergyDialog
 import com.sm.orderingagent.ui.customer.components.CustomerItemOptionsDialog
 import com.sm.orderingagent.ui.customer.components.CustomerTopBar
 import com.sm.orderingagent.ui.customer.stages.CustomerCartReviewStage
@@ -34,6 +35,7 @@ fun CustomerDriveThroughScreen(
 
         var currentStage by remember { mutableStateOf<CustomerStage>(CustomerStage.Menu) }
         var editingProduct by remember { mutableStateOf<MenuItem?>(null) }
+        var showAllergyDialog by remember { mutableStateOf(false) }
         var aiListeningText by remember { mutableStateOf("Ready to order") }
 
         // 监听云端/跨进程新一单重置
@@ -83,6 +85,8 @@ fun CustomerDriveThroughScreen(
                         else -> aiListeningText
                     },
                     isListening = currentStage !is CustomerStage.Handoff,
+                    allergens = state.allergens,
+                    onEditAllergens = { showAllergyDialog = true },
                     onCallStaff = {
                         currentStage = CustomerStage.Handoff("Customer requested staff assistance.")
                     },
@@ -110,6 +114,8 @@ fun CustomerDriveThroughScreen(
                                 categories = categories,
                                 state = state,
                                 totalCents = vm.totalCents(),
+                                risksProvider = { vm.risks(it) },
+                                blockers = vm.blockers(),
                                 onItemClick = { item ->
                                     if (item.options.isNotEmpty()) {
                                         editingProduct = item
@@ -135,6 +141,8 @@ fun CustomerDriveThroughScreen(
                                 state = state,
                                 menu = menu,
                                 totalCents = vm.totalCents(),
+                                allergens = state.allergens,
+                                blockers = vm.blockers(),
                                 onBackToMenu = {
                                     currentStage = CustomerStage.Menu
                                 },
@@ -208,11 +216,27 @@ fun CustomerDriveThroughScreen(
                     CustomerItemOptionsDialog(
                         item = product,
                         remainingStock = vm.remainingStock(product.id),
+                        risks = vm.risks(product),
                         onDismiss = { editingProduct = null },
                         onConfirm = { qty, options ->
                             executeCommand("加入购物车失败") {
                                 vm.add(product.id, qty, options)
                                 editingProduct = null
+                            }
+                        }
+                    )
+                }
+
+                // 过敏原设置弹窗
+                if (showAllergyDialog) {
+                    CustomerAllergyDialog(
+                        initialAllergens = state.allergens,
+                        conflicts = vm.blockers(),
+                        onDismiss = { showAllergyDialog = false },
+                        onApply = { selected ->
+                            executeCommand("更新过敏原要求失败") {
+                                vm.setAllergens(selected)
+                                showAllergyDialog = false
                             }
                         }
                     )

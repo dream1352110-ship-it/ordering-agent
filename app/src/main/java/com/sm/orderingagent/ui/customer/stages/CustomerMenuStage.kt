@@ -39,6 +39,8 @@ fun CustomerMenuStage(
     categories: List<String>,
     state: OrderingState,
     totalCents: Int,
+    risksProvider: (MenuItem) -> List<String> = { emptyList() },
+    blockers: List<String> = emptyList(),
     onItemClick: (MenuItem) -> Unit,
     onQuickAdd: (MenuItem) -> Unit,
     onOpenCartReview: () -> Unit,
@@ -250,6 +252,37 @@ fun CustomerMenuStage(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // 若存在过敏原冲突或阻断，在看板中段展示醒目提示
+            if (blockers.isNotEmpty()) {
+                Surface(
+                    color = DemoDangerSoft,
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, DemoDanger.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "⚠️ 过敏原风险阻断：",
+                            color = DemoDanger,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = blockers.joinToString("；"),
+                            color = DemoDanger,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
             // 3. Demo 原版双栏菜单 (menu-board-columns: 左栏主食, 右栏小食与饮品)
             Row(
                 modifier = Modifier
@@ -289,6 +322,7 @@ fun CustomerMenuStage(
                                 MenuRowItem(
                                     item = item,
                                     quantity = qty,
+                                    risks = risksProvider(item),
                                     onClick = { onItemClick(item) },
                                     onAdd = { onQuickAdd(item) }
                                 )
@@ -329,6 +363,7 @@ fun CustomerMenuStage(
                                 MenuRowItem(
                                     item = item,
                                     quantity = qty,
+                                    risks = risksProvider(item),
                                     onClick = { onItemClick(item) },
                                     onAdd = { onQuickAdd(item) }
                                 )
@@ -404,6 +439,7 @@ fun CustomerMenuStage(
 private fun MenuRowItem(
     item: MenuItem,
     quantity: Int,
+    risks: List<String> = emptyList(),
     onClick: () -> Unit,
     onAdd: () -> Unit
 ) {
@@ -427,24 +463,43 @@ private fun MenuRowItem(
                 modifier = Modifier
                     .size(20.dp)
                     .clip(CircleShape)
-                    .background(if (isAdded) DemoGreenSoft else DemoLine.copy(alpha = 0.5f)),
+                    .background(
+                        if (risks.isNotEmpty()) DemoDangerSoft
+                        else if (isAdded) DemoGreenSoft
+                        else DemoLine.copy(alpha = 0.5f)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                if (isAdded) {
+                if (risks.isNotEmpty()) {
+                    Text(text = "!", color = DemoDanger, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                } else if (isAdded) {
                     Text(text = "✓", color = DemoGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
             Column {
-                Text(
-                    text = item.name,
-                    color = DemoInk,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = item.name,
+                        color = DemoInk,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (risks.isNotEmpty()) {
+                        Text(
+                            text = "⚠️ " + risks.first(),
+                            color = DemoDanger,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
                 Text(
                     text = if (isAdded) "$quantity in order" else item.description.ifBlank { item.category },
-                    color = if (isAdded) DemoGreen else DemoInkSoft,
+                    color = if (risks.isNotEmpty()) DemoDanger.copy(alpha = 0.8f) else if (isAdded) DemoGreen else DemoInkSoft,
                     fontSize = 11.sp
                 )
             }
@@ -463,11 +518,12 @@ private fun MenuRowItem(
 
             FilledIconButton(
                 onClick = onAdd,
+                enabled = risks.isEmpty(),
                 modifier = Modifier.size(26.dp),
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = if (isAdded) DemoAccent else DemoLine.copy(alpha = 0.3f),
-                    contentColor = if (isAdded) Color.White else DemoInk
+                    containerColor = if (risks.isNotEmpty()) DemoLine.copy(alpha = 0.2f) else if (isAdded) DemoAccent else DemoLine.copy(alpha = 0.3f),
+                    contentColor = if (risks.isNotEmpty()) DemoInkSoft else if (isAdded) Color.White else DemoInk
                 )
             ) {
                 Icon(
