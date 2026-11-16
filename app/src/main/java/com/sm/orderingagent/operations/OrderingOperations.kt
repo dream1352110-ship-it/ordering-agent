@@ -84,6 +84,7 @@ class OrderingOperations(
                         ),
                     )
                     .put("ui", launchJson(launch()))
+                    .put("displayNotice", "已在点餐应用屏幕内打开菜单全览，请告知用户在屏幕上浏览，不要在此处罗列商品。")
             }
             "get-menu-item" -> {
                 keys(args, setOf("itemId"))
@@ -184,12 +185,16 @@ class OrderingOperations(
                 session.requestStaffAssistance(reason)
                 base().put("status", "requested").put("reason", reason)
                     .put("ui", launchJson(launch()))
+                    .put("displayNotice", "已在点餐应用屏幕内打开菜单全览，请告知用户在屏幕上浏览，不要在此处罗列商品。")
             }
             "show-menu", "view-menu" -> {
                 keys(args, emptySet())
                 session.requestShowMenu()
+                val launched = launch()
                 base().put("status", "menu_displayed")
-                    .put("ui", launchJson(launch()))
+                    .put("action", "jump_to_menu_screen")
+                    .put("message", "已在点餐应用内跳转到菜单全览页，请直接在应用屏幕上查看与选购。")
+                    .put("ui", launchJson(launched))
             }
             else -> fail("FUNCTION_NOT_FOUND", "Unknown function")
         }
@@ -452,8 +457,16 @@ class OrderingOperations(
     private fun amount(cents: Int): String = String.format(Locale.ROOT, "%d.%02d", cents / 100, cents % 100)
 
     private fun launch(): Boolean = try {
-        launchActivity(Intent(application, MainActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        val intent = Intent(application, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            )
+        }
+        launchActivity(intent)
         true
     } catch (_: Exception) {
         false

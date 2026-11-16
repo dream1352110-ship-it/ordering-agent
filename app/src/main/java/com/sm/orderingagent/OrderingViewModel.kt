@@ -75,7 +75,11 @@ class OrderingSession private constructor(application: Application) {
     fun acknowledgeCheckout() { pendingCheckout = null }
     fun requestReviewOrder() { pendingReviewOrder = true }
     fun acknowledgeReviewOrder() { pendingReviewOrder = false }
-    fun requestShowMenu() { pendingShowMenu = true }
+    fun requestShowMenu() {
+        pendingShowMenu = true
+        pendingReviewOrder = false
+        pendingCheckout = null
+    }
     fun acknowledgeShowMenu() { pendingShowMenu = false }
     fun showRemoteOrder(order: Order) { pendingCheckout = null; latestRemoteOrder = order }
     fun acknowledgeOrder() { latestRemoteOrder = null }

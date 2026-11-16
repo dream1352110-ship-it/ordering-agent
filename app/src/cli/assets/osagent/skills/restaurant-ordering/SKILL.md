@@ -17,10 +17,10 @@ description: "处理餐饮推荐、询价、加减餐、规格、就餐设置、
    **特别警告**：用户说“我点完了”、“我要确认订单”、“确认订单”、“确认下单”时，用户意图是**完成点餐并进入核对页面**，**严禁直接调用 `submit-demo-order`**（因为此时没有核对单凭证 summaryId 会报错失败），**必须直接调用 `review-order`**！只有在屏幕已经进入 Review Order 页面且用户最终再次明确确认支付时，才调用 `submit-demo-order`。
 2. **跳转呼叫人工客服页 (Staff Assistance)**：
    当用户表达“寻求帮助”、“人工客服”、“呼叫服务员”、“找店员”、“找人工”、“人工服务”等意图时，**必须立即调用 `request-staff-assistance`（入参传 `{}`）**，屏幕将切换到人工客服接管页面（A team member is joining）。
-3. **跳转点餐菜单全览页 (Show Menu)**：
-   当用户表达以下意图时，**绝对严禁纯文本回复，必须立即调用 `show-menu`（入参传 `{}`）**：
+3. **跳转点餐应用菜单全览页 (Show Menu)**：
+   当用户表达以下意图时，**绝对严禁纯文本回复，绝对严禁在语音助手界面上列出菜单，严禁调用 `list-menu`，必须立即调用 `show-menu`（入参传 `{}`）**：
    - 查看/返回菜单：“我要看菜单”、“看菜单”、“看看菜单”、“我想看菜单”、“打开菜单”、“显示菜单”、“浏览菜单”、“返回菜单”、“切换到菜单”、“回菜单页”、“看下有什么吃的”；
-   调用 `show-menu`（或 `list-menu`）会直接将顾客屏/车载屏切换到点餐菜单主页（Menu Stage），关闭弹窗并展示全部菜品分类与商品明细。
+   调用 `show-menu` 会直接唤醒点餐应用并在屏幕内切换到点餐菜单主页（Menu Stage），关闭弹窗并展示全部菜品分类与商品明细，交由用户触屏查看。
 
 ## 当前购物车
 
@@ -101,7 +101,7 @@ sm-oscap-cli ordering get-menu-item --json '{"itemId":"latte"}'
 sm-oscap-cli ordering calculate-price --json '{"items":[{"itemId":"fries","quantity":2,"options":{}}]}'
 ```
 
-批量查询至少一个非空 names/itemIds 数组，名称子串与精确ID取并集去重、按菜单顺序返回；检查 unmatchedNames/unmatchedItemIds。结果含价格、库存、完整规格及默认值、过敏资料和冲突，优先于快照。浏览菜单可用 `{}` 返回全部，不传 all 分类；配料和份量使用商品详情查询。独立只读查询可并行，依赖前一步结果的请求须等待，购物车修改按顺序执行。
+批量查询至少一个非空 names/itemIds 数组，名称子串与精确ID取并集去重、按菜单顺序返回；检查 unmatchedNames/unmatchedItemIds。结果含价格、库存、完整规格及默认值、过敏资料和冲突，优先于快照。`list-menu` 仅供后台检索数据（如分类筛选），严禁在用户说“我要看菜单”时调用，用户看菜单必须调用 `show-menu` 跳转应用内界面。配料和份量使用商品详情查询。独立只读查询可并行，依赖前一步结果的请求须等待，购物车修改按顺序执行。
 
 推荐与预算组合由模型选择，金额由应用计算，CNY整数分换算元展示。试算 items 非空，每项 itemId、数量1至99及完整 options 必填；检查 complete、逐项 valid/issues，不能把 validLinesTotalCents 当完整报价。试算不改车、不锁库存、不生成提交凭证。
 

@@ -16,4 +16,9 @@ class MainActivity : ComponentActivity() {
             CustomerDriveThroughScreen(model)
         }
     }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+    }
 }
