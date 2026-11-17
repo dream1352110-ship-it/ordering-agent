@@ -214,12 +214,17 @@ fun CustomerDriveThroughScreen(
                                         vm.remove(line.id)
                                     }
                                 },
-                                onSubmitOrder = { paymentMethod ->
-                                    executeCommand("提交订单失败") {
-                                        val quote = activeQuote ?: vm.quote()
-                                        val order = vm.submit(quote.id, paymentMethod)
-                                        activeQuote = null
-                                        currentStage = CustomerStage.Submitted(order)
+                                onSubmitOrder = { paymentMethod, onComplete ->
+                                    scope.launch {
+                                        try {
+                                            val quote = activeQuote ?: vm.quote()
+                                            val order = vm.submitOrderToStore(quote.id, paymentMethod)
+                                            activeQuote = null
+                                            currentStage = CustomerStage.Submitted(order)
+                                        } catch (ex: Exception) {
+                                            onComplete()
+                                            snackbarHostState.showSnackbar(ex.message ?: "提交订单失败")
+                                        }
                                     }
                                 }
                             )

@@ -37,11 +37,23 @@ fun CustomerItemOptionsDialog(
     var quantity by rememberSaveable { mutableIntStateOf(initialQuantity) }
     var selectedOptions by remember { mutableStateOf(initialOptions) }
 
+    val requiredGroups = remember(item) {
+        item.options.filter { it.kind == "option" || it.kind == "spec" }
+    }
+    val hasAllRequiredOptions = remember(selectedOptions, requiredGroups) {
+        requiredGroups.all { group ->
+            val choiceId = selectedOptions[group.id]
+            choiceId != null && group.choices.any { it.id == choiceId }
+        }
+    }
     val currentUnitPriceCents = remember(selectedOptions, item) {
         try {
             item.unitPrice(selectedOptions)
         } catch (_: Exception) {
-            item.priceCents
+            item.priceCents + selectedOptions.entries.sumOf { (groupId, choiceId) ->
+                val group = item.options.firstOrNull { it.id == groupId }
+                group?.choices?.firstOrNull { it.id == choiceId }?.extraCents ?: 0
+            }
         }
     }
 
@@ -168,12 +180,13 @@ fun CustomerItemOptionsDialog(
 
                     // 规格选项组
                     item.options.forEach { group ->
+                        val isRequiredGroup = group.kind == "option" || group.kind == "spec"
                         Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = group.label,
+                                text = group.label + if (!isRequiredGroup) "（可选）" else "",
                                 color = DemoInk,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
@@ -186,7 +199,11 @@ fun CustomerItemOptionsDialog(
                                 group.choices.forEach { choice ->
                                     val isSelected = selectedOptions[group.id] == choice.id
                                     val delta = choice.extraCents
-                                    val priceText = if (delta > 0) " +¥${String.format("%.2f", delta / 100.0)}" else ""
+                                    val priceText = when {
+                                        delta > 0 -> " +¥${String.format("%.2f", delta / 100.0)}"
+                                        delta < 0 -> " -¥${String.format("%.2f", -delta / 100.0)}"
+                                        else -> ""
+                                    }
 
                                     Box(
                                         modifier = Modifier
@@ -199,7 +216,11 @@ fun CustomerItemOptionsDialog(
                                                 shape = RoundedCornerShape(10.dp)
                                             )
                                             .clickable {
-                                                selectedOptions = selectedOptions + (group.id to choice.id)
+                                                selectedOptions = if (!isRequiredGroup && isSelected) {
+                                                    selectedOptions - group.id
+                                                } else {
+                                                    selectedOptions + (group.id to choice.id)
+                                                }
                                             }
                                             .padding(vertical = 12.dp, horizontal = 8.dp),
                                         contentAlignment = Alignment.Center
@@ -275,16 +296,20 @@ fun CustomerItemOptionsDialog(
                         // 加入购物车
                         Button(
                             onClick = { onConfirm(quantity, selectedOptions) },
-                            enabled = remainingStock > 0 && risks.isEmpty(),
+                            enabled = remainingStock > 0 && risks.isEmpty() && hasAllRequiredOptions,
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (risks.isNotEmpty()) DemoLineStrong else DemoAccent,
+                                containerColor = if (risks.isNotEmpty() || !hasAllRequiredOptions) DemoLineStrong else DemoAccent,
                                 contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(10.dp),
                             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                         ) {
                             Text(
-                                text = if (risks.isNotEmpty()) "过敏冲突无法加购" else "确认 · ¥" + String.format("%.2f", (currentUnitPriceCents * quantity) / 100.0),
+                                text = when {
+                                    risks.isNotEmpty() -> "过敏冲突无法加购"
+                                    !hasAllRequiredOptions -> "请选择完整规格"
+                                    else -> "确认 · ¥" + String.format("%.2f", (currentUnitPriceCents * quantity) / 100.0)
+                                },
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.ExtraBold
                             )

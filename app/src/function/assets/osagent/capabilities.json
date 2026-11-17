@@ -5,14 +5,13 @@
     {
       "id": "list-menu",
       "function": {
-        "description": "以{}只读查询后台菜单数据。注意：此函数仅供大模型在需要了解商品ID、规格或价格时后台读取，绝不会切换应用前端UI！当用户提出“我要看菜单”、“看菜单”、“打开菜单”、“显示菜单”、“浏览菜单”、“返回菜单”等任何查看意图时，严禁调用此函数，绝对禁止语音助手自行展示或朗读菜单，必须立即调用 show-menu 跳转点餐应用菜单界面！",
+        "description": "以{}只读查询门店在售菜单数据，返回商品ID、菜单币种最小单位价格、库存和规格摘要。categoryId可选，必须使用本次返回的分类ID；选品与加购使用本次返回的itemId和defaultOptions。注意：当用户提出“我要看菜单”、“看菜单”、“打开菜单”、“显示菜单”、“浏览菜单”、“返回菜单”等查看意图时，必须调用 show-menu 跳转点餐应用菜单界面！",
         "parameters": {
           "type": "object",
           "properties": {
             "categoryId": {
               "type": "string",
-              "description": "可选分类ID；不传表示全部，不存在all分类ID。",
-              "enum": ["main", "light", "snacks", "bakery", "coffee", "tea", "cold-drinks"]
+              "description": "可选分类ID，取自本次list-menu返回的categoryId；不传表示全部，不存在all分类ID。"
             }
           },
           "required": []
@@ -24,11 +23,11 @@
     {
       "id": "get-menu-item",
       "function": {
-        "description": "按稳定itemId只读查询完整商品资料：配料、份量、CNY整数分价格、库存、规格及默认值、含有和可能接触的过敏原、资料完整性。资料为本地模拟数据，未列出的过敏原不代表安全。",
+        "description": "按门店itemId只读查询完整商品资料：配料、份量、菜单币种最小单位价格、库存、规格及默认值、含有和可能接触的过敏原、资料完整性。详情来自 queryMenuProductInfo。itemId必须来自list-menu或search-menu。未列出的过敏原不代表安全。",
         "parameters": {
           "type": "object",
           "properties": {
-            "itemId": { "type": "string", "description": "Skill菜单快照或菜单接口提供的稳定商品ID，不是商品名称。" }
+            "itemId": { "type": "string", "description": "本次list-menu或search-menu返回的门店商品ID，不是商品名称。" }
           },
           "required": ["itemId"]
         }
@@ -74,9 +73,8 @@
                   "delta": { "type": "integer", "description": "adjust必填，-99至99非零；结果0删除，其他结果1至99。" },
                   "options": {
                     "type": "object",
-                    "description": "add必填、update/adjust可选的完整规格替换，值为字符串，无规格{}。adjust结果0时不能提供。",
-                    "properties": { "size": { "type": "string" }, "temperature": { "type": "string" }, "sugar": { "type": "string" } },
-                    "required": []
+                    "description": "add必填、update/adjust可选的完整规格。键是该商品本次返回的optionGroups[].id，值是choices[].id。required为true的组必须全部提供；无规格组传{}。adjust结果0时不能提供。",
+                    "additionalProperties": { "type": "string" }
                   },
                   "serviceMode": { "type": "string", "enum": ["dine-in", "takeout"], "description": "dining字段，与partySize至少一个，省略保留。" },
                   "partySize": { "type": "integer", "description": "dining人数1至12。" },
@@ -142,17 +140,12 @@
         "parameters": {
           "type": "object",
           "properties": {
-            "itemId": { "type": "string", "description": "Skill菜单快照或菜单接口提供的稳定商品ID。" },
+            "itemId": { "type": "string", "description": "list-menu或search-menu返回的门店商品ID。" },
             "quantity": { "type": "integer", "description": "本次增加数量，整数1至99；同商品同规格合并，库存按商品跨规格汇总校验。" },
             "options": {
               "type": "object",
-              "description": "商品支持的全部规格键及字符串选项ID，取自Skill快照或菜单查询；无规格传{}，应用不自动补默认值。",
-              "properties": {
-                "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
-                "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
-                "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
-              },
-              "required": []
+              "description": "完整规格。键是该商品本次list-menu或search-menu返回的optionGroups[].id，值是choices[].id。required为true的组必须全部提供；无规格组传{}。不使用未返回的键。",
+              "additionalProperties": { "type": "string" }
             },
             "requestId": { "type": "string", "description": "长度1至128；新意图生成新ID。重试必须复用原ID及全部原参数，跨进程重启仍返回原持久化收据。" },
             "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
@@ -174,13 +167,8 @@
             "quantity": { "type": "integer", "description": "可选绝对数量1至99；必须与options至少提供一个，删除使用remove-cart-item。" },
             "options": {
               "type": "object",
-              "description": "可选完整规格替换对象，值全为字符串；必须覆盖商品全部实际规格，无规格为{}。省略则保留原规格。",
-              "properties": {
-                "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
-                "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
-                "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
-              },
-              "required": []
+              "description": "可选完整规格替换。键是该商品optionGroups[].id，值是choices[].id。required为true的组必须全部提供；无规格组传{}。省略则保留原规格。",
+              "additionalProperties": { "type": "string" }
             },
             "requestId": { "type": "string", "description": "长度1至128；仅同函数同完整参数重试复用，新意图换新ID。" },
             "orderId": { "type": "string", "description": "可选目标单ID；省略绑定执行时当前单，显式提供则校验，不附带旧历史ID。" }
@@ -246,13 +234,8 @@
                   "quantity": { "type": "integer", "description": "整数1至99。" },
                   "options": {
                     "type": "object",
-                    "description": "商品全部实际规格，值全为字符串；无规格传{}，不自动补默认值。",
-                    "properties": {
-                      "size": { "type": "string", "description": "商品返回的杯型选项ID。" },
-                      "temperature": { "type": "string", "description": "商品返回的温度选项ID。" },
-                      "sugar": { "type": "string", "description": "商品返回的甜度选项ID。" }
-                    },
-                    "required": []
+                    "description": "完整规格。键是该商品optionGroups[].id，值是choices[].id。required为true的组必须全部提供；无规格组传{}。",
+                    "additionalProperties": { "type": "string" }
                   }
                 },
                 "required": ["itemId", "quantity", "options"]
@@ -298,7 +281,7 @@
     {
       "id": "submit-demo-order",
       "function": {
-        "description": "【最终提交支付】仅在用户已经在 Review Order 核对页面且已看到核对单明细后，最终确认支付或提交时才调用此函数。如果用户在点餐时说“我点完了”、“我要确认订单”，严禁直接调用此函数，必须先调用 review-order 跳转核对页面！必填summaryId、orderId、requestId、expectedCartVersion。",
+        "description": "【最终提交支付】提交用户已核对且仍有效的门店订单，必填summaryId、orderId、requestId和expectedCartVersion，并须完成真实用户确认。如果用户在点餐时说“我点完了”、“我要确认订单”，严禁直接调用此函数，必须先调用 review-order 跳转核对页面！执行复核身份、版本、期限、库存和过敏要求后调用门店创单；不接受confirmed参数。成功时读取status、paymentProcessed和gaap，paymentProcessed=false表示本机未扣款。orderId为完成单，nextOrderId/cartVersion为当时新车快照。持久收据重放不重复下单，也不代表当前状态。",
         "parameters": {
           "type": "object",
           "properties": {
@@ -314,6 +297,21 @@
       "confirmation": { "mode": "confirm" }
     },
     {
+      "id": "get-store-order",
+      "function": {
+        "description": "按门店订单号查询 queryOrderInfo 快照，包含状态、金额、明细和取餐号。orderId 使用提交结果里的 gaap.gaapOrderId。店员改单或结账后用同一订单号再次查询刷新，不要凭本地购物车猜测。",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "orderId": { "type": "string", "description": "createOrderV3 返回并保存在 gaap.gaapOrderId 的门店订单号。" }
+          },
+          "required": ["orderId"]
+        }
+      },
+      "execution": { "timeoutMs": 15000 },
+      "confirmation": { "mode": "auto" }
+    },
+    {
       "id": "request-staff-assistance",
       "function": {
         "description": "当用户表达“寻求帮助”、“人工客服”、“呼叫服务员”、“找店员”、“人工服务”、“需要帮助”等需要人工介入的意图时，必须立即调用此函数跳转到人工客服接管页面（A team member is joining）。",
@@ -321,7 +319,8 @@
           "type": "object",
           "properties": {
             "reason": { "type": "string", "description": "请求人工帮助的原因或说明，可省略。" }
-          }
+          },
+          "required": []
         }
       },
       "execution": { "timeoutMs": 15000 },
@@ -345,7 +344,7 @@
     {
       "id": "restaurant-ordering",
       "name": "@string/restaurant_ordering_skill_name",
-      "description": "餐厅自助点餐与车载屏交互。核心规则：当用户说【我要看菜单】、【看菜单】、【打开菜单】、【返回菜单】等，必须立刻调用 show-menu 在点餐应用内跳转菜单页，严禁语音助手自行朗读或展示菜单卡片；当用户说【我点完了】、【我要确认订单】、【我想修改订单】、【查看订单】、【结账买单】等，必须立刻调用 review-order 跳转 Review Order 界面；当用户说【人工客服】、【寻求帮助】必须立刻调用 request-staff-assistance 跳转人工界面；加减餐使用 add/update/remove-cart-item。",
+      "description": "处理餐饮推荐、询价、加减餐、规格、就餐设置、过敏要求与核对提交；选品必须使用list-menu或search-menu返回的门店商品和完整规格，普通修改作用执行时当前购物车，按需查询状态，经用户核对和确认后提交门店订单。",
       "path": "osagent/skills/restaurant-ordering/SKILL.md",
       "functionIds": [
         "list-menu",
@@ -363,6 +362,7 @@
         "open-checkout",
         "review-order",
         "submit-demo-order",
+        "get-store-order",
         "request-staff-assistance",
         "show-menu"
       ]

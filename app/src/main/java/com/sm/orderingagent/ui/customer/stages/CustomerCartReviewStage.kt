@@ -42,7 +42,7 @@ fun CustomerCartReviewStage(
     onIncreaseItem: (CartItem) -> Unit,
     onDecreaseItem: (CartItem) -> Unit,
     onRemoveItem: (CartItem) -> Unit,
-    onSubmitOrder: (String) -> Unit,
+    onSubmitOrder: (String, () -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedPayment by rememberSaveable { mutableStateOf("扫码支付") }
@@ -456,7 +456,7 @@ fun CustomerCartReviewStage(
                         onClick = {
                             if (!submitting) {
                                 submitting = true
-                                onSubmitOrder(selectedPayment)
+                                onSubmitOrder(selectedPayment) { submitting = false }
                             }
                         },
                         enabled = blockers.isEmpty() && !submitting,

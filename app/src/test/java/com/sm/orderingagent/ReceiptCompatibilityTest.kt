@@ -2,6 +2,7 @@
 
 import android.app.Application
 import com.sm.orderingagent.domain.CommandReceipt
+import com.sm.orderingagent.gateway.MockGaapPosGateway
 import com.sm.orderingagent.operations.OrderingOperations
 import org.json.JSONObject
 import org.junit.After
@@ -39,7 +40,7 @@ class ReceiptCompatibilityTest {
     }
 
     @Test fun submitRequiresCurrentIdentityAndFreshQuoteButCompletedReplayStillWorks() {
-        val operations = OrderingOperations(application, launchActivity = {})
+        val operations = OrderingOperations(application, launchActivity = {}, gaapPosGateway = MockGaapPosGateway())
         val orderId = OrderingSession.get(application).state.currentOrderId
         fun execute(id: String, json: String): JSONObject {
             val result = operations.execute(id, json)

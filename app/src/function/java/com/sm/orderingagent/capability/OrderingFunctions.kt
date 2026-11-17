@@ -33,6 +33,7 @@ class OrderingFunctions(
             CapabilityFunction { raw -> execute("submit-demo-order", raw) },
             ConfirmationMessage { raw -> operations.prepareConfirmation(raw) },
         ),
+        "get-store-order" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("get-store-order", raw) }),
         "request-staff-assistance" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("request-staff-assistance", raw) }),
         "show-menu" to CapabilityFunctionHandler(CapabilityFunction { raw -> execute("show-menu", raw) }),
     )

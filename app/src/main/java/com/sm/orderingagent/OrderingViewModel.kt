@@ -10,17 +10,20 @@ import com.sm.orderingagent.domain.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.FutureTask
 
 class OrderingViewModel(application: Application) : AndroidViewModel(application) {
     private val session = OrderingSession.get(application)
     val state: OrderingState get() = session.state
     val menu get() = session.menu
+    val categories get() = session.categories
     val pendingCheckout get() = session.pendingCheckout
     val pendingReviewOrder get() = session.pendingReviewOrder
     val pendingShowMenu get() = session.pendingShowMenu
     val latestRemoteOrder get() = session.latestRemoteOrder
     val pendingHandoffReason get() = session.pendingHandoffReason
     val orderGeneration get() = session.orderGeneration
+    fun refreshMenu() = session.refreshMenuFromCloud()
     fun acknowledgeCheckout() = session.acknowledgeCheckout()
     fun acknowledgeReviewOrder() = session.acknowledgeReviewOrder()
     fun acknowledgeShowMenu() = session.acknowledgeShowMenu()
@@ -39,15 +42,23 @@ class OrderingViewModel(application: Application) : AndroidViewModel(application
     fun startNewOrder() = session.startNewOrder()
     fun setAllergens(allergens: Set<Allergen>) = session.mutate { setAllergens(allergens) }
     fun setDining(mode: String, partySize: Int) = session.mutate { setDining(mode, partySize) }
-    fun submit(quoteId: String, paymentMethod: String): Order = session.mutate { submit(quoteId, paymentMethod) }
+    fun submit(quoteId: String, paymentMethod: String): Order = session.submit(quoteId, paymentMethod)
+    suspend fun submitOrderToStore(quoteId: String, paymentMethod: String): Order = session.submitOrderToStore(quoteId, paymentMethod)
 }
 
 class OrderingSession private constructor(application: Application) {
     private val store = StateStore(File(application.filesDir, "ordering-state.json"))
-    private var engine = OrderingEngine(DemoMenu.items, store.load())
+    private val menuLock = Any()
+    val usesLocalDemoMenu: Boolean = isInstrumentation()
+    private val initialMenu = if (usesLocalDemoMenu) DemoMenu.items else emptyList()
+    private var engine = OrderingEngine(initialMenu, store.load())
+    @Volatile private var liveMenuReady = usesLocalDemoMenu
     var state by mutableStateOf(engine.state)
         private set
-    val menu = DemoMenu.items
+    var menu by mutableStateOf(initialMenu)
+        private set
+    var categories by mutableStateOf(listOf("全部") + initialMenu.map { it.category }.distinct())
+        private set
     var pendingCheckout by mutableStateOf<CheckoutQuote?>(null)
         private set
     var pendingReviewOrder by mutableStateOf(false)
@@ -60,6 +71,62 @@ class OrderingSession private constructor(application: Application) {
         private set
     var orderGeneration by mutableStateOf(0L)
         private set
+
+    init {
+        refreshMenuFromCloud()
+    }
+
+    fun refreshMenuFromCloud() {
+        if (usesLocalDemoMenu) return
+        val worker = Thread {
+            try {
+                ensureLiveMenu {
+                    val gateway = com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway()
+                    val responseJson = gateway.fetchRealMenuProducts(pageSize = 50)
+                    com.sm.orderingagent.gateway.MaxIotMenuConverter.convert(responseJson)
+                }
+            } catch (_: Exception) {
+                // 保持未就绪，下一次 Function / CLI 调用会重试
+            }
+        }
+        worker.isDaemon = true
+        worker.start()
+    }
+
+    fun ensureLiveMenu(fetch: () -> List<MenuItem>) {
+        if (liveMenuReady) return
+        val items = synchronized(menuLock) {
+            if (liveMenuReady) return
+            MenuCatalog.acceptCloudMenu(fetch())
+        }
+        val apply = FutureTask {
+            if (!liveMenuReady) {
+                applyLiveMenu(items)
+                liveMenuReady = true
+            }
+        }
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            apply.run()
+        } else if (!android.os.Handler(android.os.Looper.getMainLooper()).post(apply)) {
+            throw OrderingException("主线程不可用", "INTERNAL_ERROR")
+        } else {
+            apply.get()
+        }
+    }
+
+    private fun applyLiveMenu(items: List<MenuItem>) {
+        val validCart = engine.state.cart.filter { cartItem -> items.any { it.id == cartItem.itemId } }
+        val sanitized = if (validCart.size == engine.state.cart.size) {
+            engine.state
+        } else {
+            engine.state.copy(cart = validCart, version = engine.state.version + 1)
+        }
+        menu = items
+        categories = listOf("全部") + items.map { it.category }.distinct()
+        engine = OrderingEngine(items, sanitized)
+        state = engine.state
+        store.save(state)
+    }
     fun clearTransientForNewOrder() {
         pendingCheckout = null
         pendingReviewOrder = false
@@ -107,6 +174,38 @@ class OrderingSession private constructor(application: Application) {
     fun setDining(mode: String, partySize: Int) = mutate { setDining(mode, partySize) }
     fun submit(quoteId: String, paymentMethod: String): Order = mutate { submit(quoteId, paymentMethod) }
 
+    suspend fun submitOrderToStore(quoteId: String, paymentMethod: String): Order {
+        if (usesLocalDemoMenu) return submit(quoteId, paymentMethod)
+        val previewOrder = inspect {
+            val quote = checkout(quoteId)
+            Order(
+                state.currentOrderId, "A%03d".format(state.orders.size + 1), System.currentTimeMillis(),
+                state.cart.map {
+                    val product = item(it.itemId)
+                    OrderLine(
+                        product.name,
+                        it.quantity,
+                        product.optionText(it.options),
+                        unitPrice(it),
+                        MenuCatalog.skuId(it.itemId, it.options),
+                        product.currency,
+                        MenuCatalog.selectedIds(product, it.options, "customization"),
+                        MenuCatalog.selectedIds(product, it.options, "ingredient"),
+                    )
+                },
+                quote.totalCents, state.serviceMode, state.partySize, state.allergens.toSet(), paymentMethod, quoteId,
+            )
+        }
+        val gaapResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val gateway = com.sm.orderingagent.gateway.RealMaxIotGaapPosGateway()
+            gateway.submitOrder(previewOrder, quoteId, previewOrder.serviceMode)
+        }
+        if (!gaapResult.isSuccess) {
+            throw OrderingException(gaapResult.errorMessage ?: "门店创单失败", gaapResult.errorCode ?: "POS_SUBMIT_FAILED")
+        }
+        return submit(quoteId, paymentMethod)
+    }
+
     fun <Result> mutate(action: OrderingEngine.() -> Result): Result {
         check(android.os.Looper.myLooper() == android.os.Looper.getMainLooper())
         val result = engine.transaction(store::save, action)
@@ -115,6 +214,16 @@ class OrderingSession private constructor(application: Application) {
     }
 
     companion object {
+        internal fun isInstrumentation(): Boolean =
+            System.getProperty("robolectric.logging.enabled") != null ||
+                System.getProperty("android.specs") != null ||
+                try {
+                    Class.forName("org.robolectric.Robolectric", false, OrderingSession::class.java.classLoader)
+                    true
+                } catch (_: ClassNotFoundException) {
+                    false
+                }
+
         @Volatile private var instance: OrderingSession? = null
         fun get(application: Application): OrderingSession = instance ?: synchronized(this) {
             instance ?: OrderingSession(application).also { instance = it }
@@ -148,7 +257,13 @@ internal class StateStore(file: File) {
                 orders = json.getJSONArray("orders").objects().map { order ->
                     Order(order.getString("id"), order.getString("number"), order.getLong("createdAt"),
                         order.getJSONArray("lines").objects().map { line ->
-                            OrderLine(line.getString("name"), line.getInt("quantity"), line.getString("options"), line.getInt("unitPriceCents"))
+                            OrderLine(
+                                line.getString("name"),
+                                line.getInt("quantity"),
+                                line.getString("options"),
+                                line.getInt("unitPriceCents"),
+                                if (line.has("skuId") && !line.isNull("skuId")) line.getString("skuId") else "",
+                            )
                         }, order.getInt("totalCents"), order.getString("serviceMode"), order.getInt("partySize"),
                         order.getJSONArray("allergens").allergens(), order.getString("paymentMethod"),
                         if (order.has("summaryId") && !order.isNull("summaryId")) order.getString("summaryId") else null)
@@ -181,7 +296,8 @@ internal class StateStore(file: File) {
                     .put("totalCents", order.totalCents).put("serviceMode", order.serviceMode).put("partySize", order.partySize)
                     .put("allergens", JSONArray(order.allergens.map { it.name })).put("paymentMethod", order.paymentMethod)
                     .put("lines", JSONArray(order.lines.map {
-                        JSONObject().put("name", it.name).put("quantity", it.quantity).put("options", it.options).put("unitPriceCents", it.unitPriceCents)
+                        JSONObject().put("name", it.name).put("quantity", it.quantity).put("options", it.options)
+                            .put("unitPriceCents", it.unitPriceCents).put("skuId", it.skuId)
                     }))
             }))
         val output = try {

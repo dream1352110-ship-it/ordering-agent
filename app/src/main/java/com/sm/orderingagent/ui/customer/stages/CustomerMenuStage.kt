@@ -59,23 +59,41 @@ fun CustomerMenuStage(
             .ifEmpty { menuItems.take(3) }
     }
 
-    // 左栏分类：主食、轻食、小食、烘焙（全量 14 款，分类分组展示并支持平滑滑动）
-    val leftCategories = remember { listOf("主食", "轻食", "小食", "烘焙") }
-    val leftGrouped = remember(menuItems) {
-        leftCategories.mapNotNull { cat ->
-            val list = menuItems.filter { it.category == cat }
-            if (list.isNotEmpty()) cat to list else null
-        }
-    }
+    // 左栏与右栏分类自适应：优先匹配经典分类，若为云端动态分类（如“热销”等）则自动按左右双栏均衡展示
+    val (leftGrouped, rightGrouped) = remember(menuItems) {
+        val preferredLeft = listOf("主食", "轻食", "小食", "烘焙")
+        val preferredRight = listOf("咖啡", "茶饮", "冷饮")
+        val allCats = menuItems.map { it.category }.distinct()
+        val extraCats = allCats.filter { it !in preferredLeft && it !in preferredRight }
+        val extraLeft = extraCats.filterIndexed { index, _ -> index % 2 == 0 }
+        val extraRight = extraCats.filterIndexed { index, _ -> index % 2 == 1 }
 
-    // 右栏分类：咖啡、茶饮、冷饮（全量 23 款，分类分组展示并支持平滑滑动）
-    val rightCategories = remember { listOf("咖啡", "茶饮", "冷饮") }
-    val rightGrouped = remember(menuItems) {
-        rightCategories.mapNotNull { cat ->
+        val leftCats = preferredLeft + extraLeft
+        val rightCats = preferredRight + extraRight
+
+        val left = leftCats.mapNotNull { cat ->
             val list = menuItems.filter { it.category == cat }
             if (list.isNotEmpty()) cat to list else null
         }
+        val right = rightCats.mapNotNull { cat ->
+            val list = menuItems.filter { it.category == cat }
+            if (list.isNotEmpty()) cat to list else null
+        }
+
+        // 若某侧为空而另一侧有多项，自动平分以确保双栏美观
+        if (right.isEmpty() && left.size == 1 && left.first().second.size > 1) {
+            val (cat, list) = left.first()
+            val mid = (list.size + 1) / 2
+            listOf(cat to list.take(mid)) to listOf("$cat (续)" to list.drop(mid))
+        } else if (right.isEmpty() && left.size > 1) {
+            val mid = (left.size + 1) / 2
+            left.take(mid) to left.drop(mid)
+        } else {
+            left to right
+        }
     }
+    val leftTotalCount = remember(leftGrouped) { leftGrouped.sumOf { it.second.size } }
+    val rightTotalCount = remember(rightGrouped) { rightGrouped.sumOf { it.second.size } }
 
     Box(
         modifier = modifier
@@ -323,7 +341,7 @@ fun CustomerMenuStage(
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
-                                text = "共 14 款",
+                                text = "共 $leftTotalCount 款",
                                 color = DemoMenuBoardGoldSoft.copy(alpha = 0.7f),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
@@ -388,7 +406,7 @@ fun CustomerMenuStage(
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
-                                text = "共 23 款",
+                                text = "共 $rightTotalCount 款",
                                 color = DemoMenuBoardGoldSoft.copy(alpha = 0.7f),
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium
@@ -582,7 +600,7 @@ private fun RealMenuBoardRow(
     onClick: () -> Unit
 ) {
     val isAdded = quantity > 0
-    val sizeGroup = item.options.firstOrNull { it.id == "size" }
+    val sizeGroup = item.options.firstOrNull { it.id == "size" || it.id == "spec" }
 
     Column(
         modifier = Modifier
